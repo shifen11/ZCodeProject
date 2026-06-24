@@ -41,33 +41,25 @@ function App() {
   }, [chat, subtitle])
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <Controls
-        isCapturing={isCapturing}
-        onStart={onStart}
-        onStop={onStop}
-        onSuggest={onSuggest}
-        onClear={onClear}
-      />
-      {(captureError || subtitle.error) && (
-        <div style={{ padding: '6px 12px', background: '#fff3f3', color: '#c00' }}>
-          {captureError || subtitle.error}
-        </div>
-      )}
-      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-        <div
-          style={{
-            flex: 1,
-            borderRight: '1px solid #e0e0e0',
-            minHeight: 0,
-          }}
-        >
+    <main className="app-shell">
+      <div className="app-frame">
+        <Controls
+          isCapturing={isCapturing}
+          onStart={onStart}
+          onStop={onStop}
+          onSuggest={onSuggest}
+          onClear={onClear}
+        />
+        {(captureError || subtitle.error) && (
+          <div className="error-banner" role="alert">
+            {captureError || subtitle.error}
+          </div>
+        )}
+        <section className="workspace" aria-label="面试辅助工作区">
           <SubtitlePanel
             lines={subtitle.lines}
             currentPartial={subtitle.currentPartial}
           />
-        </div>
-        <div style={{ flex: 1, minHeight: 0 }}>
           <SuggestPanel
             suggestion={chat.suggestion}
             loading={chat.loading}
@@ -76,9 +68,9 @@ function App() {
             error={chat.error}
             onAsk={chat.ask}
           />
-        </div>
+        </section>
       </div>
-    </div>
+    </main>
   )
 }
 
