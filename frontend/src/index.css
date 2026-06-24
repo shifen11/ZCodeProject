@@ -25,7 +25,6 @@ html {
 }
 
 body {
-  min-width: 980px;
   min-height: 100vh;
   margin: 0;
   background: var(--color-bg);
@@ -47,7 +46,6 @@ input:focus-visible {
 }
 
 .app-shell {
-  min-width: 980px;
   min-height: 100vh;
   padding: 24px;
   background: radial-gradient(circle at 12% 4%, var(--color-bg-accent) 0, transparent 30%),
