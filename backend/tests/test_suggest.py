@@ -65,3 +65,28 @@ def test_suggest_unknown_session_raises():
     svc = SuggestService(llm=_fake_llm("x"), store=store)
     with pytest.raises(KeyError):
         svc.suggest("nonexistent-session-id")
+
+
+def test_suggest_stream_emits_chunks_and_commits_turn():
+    store = SessionStore()
+    s = store.create()
+    s.append_final("讲讲项目")
+    fake_llm = MagicMock()
+    fake_llm.stream.return_value = iter(["用 ", "STAR"])
+    svc = SuggestService(llm=fake_llm, store=store)
+
+    chunks = list(svc.suggest_stream(s.session_id))
+
+    assert "".join(chunks) == "用 STAR"
+    # 当前轮次在 prepare 阶段就清空了
+    assert s.current_turn_text == ""
+    # 流结束后建议存进 history
+    assert s.history_turns[-1].question == "讲讲项目"
+    assert s.history_turns[-1].suggestion == "用 STAR"
+
+
+def test_suggest_stream_unknown_session_raises():
+    store = SessionStore()
+    svc = SuggestService(llm=MagicMock(), store=store)
+    with pytest.raises(KeyError):
+        list(svc.suggest_stream("nonexistent"))

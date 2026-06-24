@@ -1,35 +1,11 @@
-import type { SuggestResult } from '../types'
-
 const BASE = '/api'
 
-export async function postSuggest(sessionId: string): Promise<SuggestResult> {
-  const resp = await fetch(`${BASE}/suggest`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ session_id: sessionId }),
-  })
-  if (!resp.ok) throw new Error(`生成失败：${resp.status}`)
-  return resp.json()
-}
-
-export async function postClear(sessionId: string): Promise<void> {
-  const resp = await fetch(`${BASE}/clear`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ session_id: sessionId }),
-  })
-  if (!resp.ok) throw new Error(`清空失败：${resp.status}`)
-}
-
-/** SSE 流式追问：逐 token yield。 */
-export async function* streamAsk(
-  sessionId: string,
-  message: string,
+/** SSE 流式读取通用工具：把 fetch 的 SSE 响应逐 token yield。 */
+async function* readSseStream(
+  resp: Response,
+  failMsg: string,
 ): AsyncGenerator<string> {
-  const params = new URLSearchParams({ session_id: sessionId, message })
-  const resp = await fetch(`${BASE}/ask?${params.toString()}`)
-  if (!resp.ok || !resp.body) throw new Error(`追问失败：${resp.status}`)
-
+  if (!resp.ok || !resp.body) throw new Error(`${failMsg}：${resp.status}`)
   const reader = resp.body.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
@@ -51,4 +27,33 @@ export async function* streamAsk(
       }
     }
   }
+}
+
+/** SSE 流式生成建议：逐 token yield。 */
+export async function* streamSuggest(sessionId: string): AsyncGenerator<string> {
+  const resp = await fetch(`${BASE}/suggest`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: sessionId }),
+  })
+  yield* readSseStream(resp, '生成失败')
+}
+
+export async function postClear(sessionId: string): Promise<void> {
+  const resp = await fetch(`${BASE}/clear`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: sessionId }),
+  })
+  if (!resp.ok) throw new Error(`清空失败：${resp.status}`)
+}
+
+/** SSE 流式追问：逐 token yield。 */
+export async function* streamAsk(
+  sessionId: string,
+  message: string,
+): AsyncGenerator<string> {
+  const params = new URLSearchParams({ session_id: sessionId, message })
+  const resp = await fetch(`${BASE}/ask?${params.toString()}`)
+  yield* readSseStream(resp, '追问失败')
 }

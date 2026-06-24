@@ -1,4 +1,4 @@
-"""生成建议（同步）+ 追问（SSE 流式）+ 清空历史 路由。"""
+"""生成建议（SSE 流式）+ 追问（SSE 流式）+ 清空历史 路由。"""
 
 import json
 
@@ -7,7 +7,7 @@ from fastapi.responses import StreamingResponse
 
 from app.deps import get_llm, get_session_store, get_suggest_service
 from app.prompts import SYSTEM_PROMPT
-from app.schemas import SuggestRequest, SuggestResponse
+from app.schemas import SuggestRequest
 from app.services.llm import LlmClient
 from app.services.session import SessionStore
 from app.services.suggest import CURRENT_TURN_PREFIX, SuggestService
@@ -15,25 +15,30 @@ from app.services.suggest import CURRENT_TURN_PREFIX, SuggestService
 router = APIRouter(prefix="/api")
 
 
-@router.post("/suggest", response_model=SuggestResponse)
+@router.post("/suggest")
 def suggest_endpoint(
     req: SuggestRequest,
     store: SessionStore = Depends(get_session_store),
     svc: SuggestService = Depends(get_suggest_service),
-) -> SuggestResponse:
+) -> StreamingResponse:
     session = store.get(req.session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="session not found")
-    question_snapshot = session.current_turn_text
-    try:
-        suggestion = svc.suggest(req.session_id)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"生成失败: {e}")
-    return SuggestResponse(
-        session_id=req.session_id,
-        suggestion=suggestion,
-        question=question_snapshot,
-    )
+
+    # 预检：当前没有转写文本时直接返回空，避免空内容触发 LLM。
+    if not session.current_turn_text.strip():
+        raise HTTPException(status_code=400, detail="当前没有可生成建议的内容")
+
+    def event_stream():
+        try:
+            for delta in svc.suggest_stream(req.session_id):
+                payload = json.dumps({"delta": delta}, ensure_ascii=False)
+                yield f"data: {payload}\n\n"
+        except Exception as e:
+            err = json.dumps({"error": str(e)}, ensure_ascii=False)
+            yield f"data: {err}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 @router.post("/clear")

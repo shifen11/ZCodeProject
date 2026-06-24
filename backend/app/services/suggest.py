@@ -1,12 +1,25 @@
-"""生成建议业务：组装 prompt，调 LLM，结转轮次。"""
+"""生成建议业务：组装 prompt，调 LLM，结转轮次。
 
-from typing import List
+支持两种模式：
+- suggest()：同步生成，一次性返回完整建议（仍保留，测试用）。
+- suggest_stream()：流式生成，逐 token 产出；流结束后才把完整建议结转进 history。
+"""
+
+from dataclasses import dataclass
+from typing import Iterator, List
 
 from app.prompts import SYSTEM_PROMPT
 from app.services.llm import LlmClient
 from app.services.session import InterviewSession, SessionStore
 
 CURRENT_TURN_PREFIX = "面试官问："
+
+
+@dataclass
+class SuggestSnapshot:
+    """流式生成开始前对当前轮次的快照。"""
+
+    question: str
 
 
 class SuggestService:
@@ -26,7 +39,7 @@ class SuggestService:
         return messages
 
     def suggest(self, session_id: str) -> str:
-        """生成建议并结转当前轮次。返回建议文本。"""
+        """同步生成并结转当前轮次。返回建议文本。"""
         session = self._store.get(session_id)
         if session is None:
             raise KeyError(f"session not found: {session_id}")
@@ -34,3 +47,41 @@ class SuggestService:
         suggestion = self._llm.generate(messages)
         session.finalize_turn(suggestion=suggestion)
         return suggestion
+
+    def prepare_stream(self, session_id: str) -> tuple[SuggestSnapshot, List[dict]]:
+        """流式生成的准备阶段。
+
+        1. 组装 messages（含当前轮次文本）。
+        2. 拍下 question 快照（= 当前轮次文本，供前端回显）。
+        3. 立即清空当前轮次：识别可以马上开始累积下一轮，不与生成冲突。
+
+        返回 (快照, messages)。流结束后再调 commit_stream 把建议存进 history。
+        """
+        session = self._store.get(session_id)
+        if session is None:
+            raise KeyError(f"session not found: {session_id}")
+        snapshot = SuggestSnapshot(question=session.current_turn_text)
+        messages = self.build_messages(session)
+        # 立即清空当前轮次，开始新一轮累积（消息已经组装好，不受影响）
+        session.current_turn_text = ""
+        return snapshot, messages
+
+    def commit_stream(self, session_id: str, snapshot: SuggestSnapshot, suggestion: str) -> None:
+        """流式结束后：把这一轮的 {问题, 建议} 存进 history。"""
+        from app.schemas import Turn
+
+        session = self._store.get(session_id)
+        if session is None:
+            return
+        session.history_turns.append(
+            Turn(question=snapshot.question, suggestion=suggestion)
+        )
+
+    def suggest_stream(self, session_id: str) -> Iterator[str]:
+        """流式生成并结转当前轮次。逐 token 产出建议片段。"""
+        snapshot, messages = self.prepare_stream(session_id)
+        acc: list[str] = []
+        for delta in self._llm.stream(messages):
+            acc.append(delta)
+            yield delta
+        self.commit_stream(session_id, snapshot, "".join(acc))

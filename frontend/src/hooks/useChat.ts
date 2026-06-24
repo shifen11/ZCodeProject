@@ -1,9 +1,9 @@
 import { useCallback, useState } from 'react'
-import { postClear, postSuggest, streamAsk } from '../api/chat'
+import { postClear, streamAsk, streamSuggest } from '../api/chat'
 import type { ChatMessage } from '../types'
 
 /**
- * 管理建议 + 追问：generate 同步拿建议，ask 流式追问，clear 清空。
+ * 管理建议 + 追问：generate 流式生成建议，ask 流式追问，clear 清空。
  */
 export function useChat(sessionId: string) {
   const [suggestion, setSuggestion] = useState('')
@@ -12,14 +12,18 @@ export function useChat(sessionId: string) {
   const [followups, setFollowups] = useState<ChatMessage[]>([])
   const [error, setError] = useState('')
 
+  // 生成建议：流式返回，逐 token 累积显示。成功返回 true。
   const generate = useCallback(async (): Promise<boolean> => {
     if (!sessionId) return false
     setLoading(true)
     setError('')
     setSuggestion('')
     try {
-      const res = await postSuggest(sessionId)
-      setSuggestion(res.suggestion)
+      let acc = ''
+      for await (const delta of streamSuggest(sessionId)) {
+        acc += delta
+        setSuggestion(acc)
+      }
       return true
     } catch (e) {
       setError((e as Error).message)

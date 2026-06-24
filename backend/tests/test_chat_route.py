@@ -19,21 +19,27 @@ def _setup_session_with_turn():
     return store, s
 
 
-def test_suggest_endpoint_returns_suggestion():
+def test_suggest_endpoint_streams_suggestion():
     store, s = _setup_session_with_turn()
     fake_llm = MagicMock()
-    fake_llm.generate.return_value = "用 STAR 回答"
+    fake_llm.stream.return_value = iter(["用 ", "STAR ", "回答"])
     svc = SuggestService(llm=fake_llm, store=store)
     app.dependency_overrides[get_suggest_service] = lambda: svc
 
     client = TestClient(app)
-    resp = client.post("/api/suggest", json={"session_id": s.session_id})
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["suggestion"] == "用 STAR 回答"
-    assert body["question"] == "讲讲项目"
-    # 轮次已结转
+    with client.stream("POST", "/api/suggest", json={"session_id": s.session_id}) as resp:
+        assert resp.status_code == 200
+        deltas = []
+        for line in resp.iter_lines():
+            if line.startswith("data: "):
+                payload = json.loads(line[6:])
+                if "delta" in payload:
+                    deltas.append(payload["delta"])
+    assert "".join(deltas) == "用 STAR 回答"
+    # 流式结束后：当前轮次已清空，建议已存进 history
     assert s.current_turn_text == ""
+    assert s.history_turns[-1].question == "讲讲项目"
+    assert s.history_turns[-1].suggestion == "用 STAR 回答"
     app.dependency_overrides.clear()
 
 
@@ -42,6 +48,20 @@ def test_suggest_unknown_session_returns_404():
     client = TestClient(app)
     resp = client.post("/api/suggest", json={"session_id": "nonexistent"})
     assert resp.status_code == 404
+    app.dependency_overrides.clear()
+
+
+def test_suggest_empty_turn_returns_400():
+    store, s = _setup_session_with_turn()
+    s.current_turn_text = ""  # 没有转写文本
+    fake_llm = MagicMock()
+    svc = SuggestService(llm=fake_llm, store=store)
+    app.dependency_overrides[get_suggest_service] = lambda: svc
+
+    client = TestClient(app)
+    resp = client.post("/api/suggest", json={"session_id": s.session_id})
+    assert resp.status_code == 400
+    fake_llm.stream.assert_not_called()
     app.dependency_overrides.clear()
 
 

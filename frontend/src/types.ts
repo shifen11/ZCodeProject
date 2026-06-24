@@ -3,12 +3,6 @@ export interface SubtitleLine {
   isFinal: boolean;
 }
 
-export interface SuggestResult {
-  sessionId: string;
-  suggestion: string;
-  question: string;
-}
-
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
