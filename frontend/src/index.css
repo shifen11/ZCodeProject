@@ -1,8 +1,16 @@
 :root {
+  --color-bg: #f7f8fd;
+  --color-bg-accent: #e8edff;
+  --color-text: #18233f;
+  --color-surface: rgb(255 255 255 / 90%);
+  --color-border: #e5e9f7;
+  --color-primary: #566add;
+  --color-focus: rgb(86 106 221 / 35%);
+  --shadow-card: 0 12px 30px rgb(39 54 115 / 7%);
   font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
     "Microsoft YaHei", sans-serif;
-  color: #18233f;
-  background: #f7f8fd;
+  color: var(--color-text);
+  background: var(--color-bg);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
@@ -13,14 +21,14 @@
 
 html {
   min-width: 980px;
-  background: #f7f8fd;
+  background: var(--color-bg);
 }
 
 body {
   min-width: 980px;
   min-height: 100vh;
   margin: 0;
-  background: #f7f8fd;
+  background: var(--color-bg);
 }
 
 button,
@@ -34,7 +42,7 @@ button {
 
 button:focus-visible,
 input:focus-visible {
-  outline: 3px solid rgb(86 106 221 / 35%);
+  outline: 3px solid var(--color-focus);
   outline-offset: 2px;
 }
 
@@ -42,7 +50,8 @@ input:focus-visible {
   min-width: 980px;
   min-height: 100vh;
   padding: 24px;
-  background: radial-gradient(circle at 12% 4%, #e8edff 0, transparent 30%), #f7f8fd;
+  background: radial-gradient(circle at 12% 4%, var(--color-bg-accent) 0, transparent 30%),
+    var(--color-bg);
 }
 
 .workspace {
@@ -54,9 +63,9 @@ input:focus-visible {
 
 .topbar,
 .panel-card {
-  border: 1px solid #e5e9f7;
-  background: rgb(255 255 255 / 90%);
-  box-shadow: 0 12px 30px rgb(39 54 115 / 7%);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
 }
 
 .topbar {
