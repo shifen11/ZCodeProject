@@ -33,10 +33,13 @@ export function SuggestPanel({
         <span>基于当前字幕</span>
       </header>
       <div className="suggestion-content">
-        {loading ? (
+        {suggestion ? (
+          <div className="suggestion-box">
+            {suggestion}
+            {loading && <span className="streaming-cursor">▍</span>}
+          </div>
+        ) : loading ? (
           <p className="empty-state">生成中...</p>
-        ) : suggestion ? (
-          <div className="suggestion-box">{suggestion}</div>
         ) : (
           <p className="empty-state">
             面试官问完后，点“生成建议”获取回答思路。
