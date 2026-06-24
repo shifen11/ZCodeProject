@@ -5,6 +5,7 @@
   --color-surface: rgb(255 255 255 / 90%);
   --color-border: #e5e9f7;
   --color-primary: #566add;
+  --color-primary-deep: #4657c7;
   --color-focus: rgb(86 106 221 / 35%);
   --shadow-card: 0 12px 30px rgb(39 54 115 / 7%);
   font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
@@ -111,7 +112,7 @@ input:focus-visible {
   place-items: center;
   border-radius: 10px;
   color: #fff;
-  background: linear-gradient(135deg, #6678ee, #4657c7);
+  background: linear-gradient(135deg, #6678ee, var(--color-primary-deep));
   box-shadow: 0 6px 14px rgb(70 87 199 / 24%);
 }
 
@@ -142,7 +143,7 @@ input:focus-visible {
 }
 
 .capture-status.is-active .status-dot {
-  background: #566add;
+  background: var(--color-primary);
   box-shadow: 0 0 0 4px rgb(86 106 221 / 15%);
 }
 
@@ -167,7 +168,11 @@ input:focus-visible {
 
 .primary-control {
   color: #fff;
-  background: linear-gradient(135deg, #566add, #4657c7);
+  background: linear-gradient(
+    135deg,
+    var(--color-primary),
+    var(--color-primary-deep)
+  );
   box-shadow: 0 6px 14px rgb(70 87 199 / 22%);
 }
 

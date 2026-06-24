@@ -19,7 +19,11 @@ export function Controls({
         <span className="brand-icon" aria-hidden="true">✦</span>
         <strong>面试助手</strong>
       </div>
-      <div className={`capture-status ${isCapturing ? 'is-active' : ''}`}>
+      <div
+        className={`capture-status ${isCapturing ? 'is-active' : ''}`}
+        role="status"
+        aria-live="polite"
+      >
         <span aria-hidden="true" className="status-dot" />
         {isCapturing ? '正在采集' : '等待采集'}
       </div>
