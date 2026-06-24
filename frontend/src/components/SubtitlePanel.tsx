@@ -14,21 +14,26 @@ export function SubtitlePanel({ lines, currentPartial }: Props) {
   }, [lines, currentPartial])
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto', padding: 12 }}>
-      {lines.length === 0 && !currentPartial && (
-        <p style={{ color: '#aaa' }}>点"开始采集"后，面试官的话会出现在这里。</p>
-      )}
-      {lines.map((l, i) => (
-        <p key={i} style={{ margin: '6px 0', lineHeight: 1.6 }}>
-          {l.text}
-        </p>
-      ))}
-      {currentPartial && (
-        <p style={{ color: '#999', margin: '6px 0', lineHeight: 1.6 }}>
-          {currentPartial} <span>（识别中）</span>
-        </p>
-      )}
-      <div ref={bottomRef} />
-    </div>
+    <section className="panel-card subtitle-card" aria-label="实时字幕">
+      <header className="panel-header">
+        <h2>实时字幕</h2>
+        <span>自动滚动</span>
+      </header>
+      <div className="subtitle-content">
+        {lines.length === 0 && !currentPartial && (
+          <p className="empty-state">点“开始采集”后，面试官的话会出现在这里。</p>
+        )}
+        {lines.map((line, index) => (
+          <p key={index} className="subtitle-line">{line.text}</p>
+        ))}
+        {currentPartial && (
+          <p className="subtitle-partial">
+            <span>识别中</span>
+            {currentPartial}
+          </p>
+        )}
+        <div ref={bottomRef} />
+      </div>
+    </section>
   )
 }

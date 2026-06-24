@@ -27,55 +27,50 @@ export function SuggestPanel({
   }
 
   return (
-    <div
-      style={{
-        height: '100%',
-        padding: 12,
-        display: 'flex',
-        flexDirection: 'column',
-      }}
-    >
-      <h3 style={{ marginTop: 0 }}>回答建议</h3>
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+    <section className="panel-card suggest-card" aria-label="回答建议">
+      <header className="panel-header">
+        <h2>回答建议</h2>
+        <span>基于当前字幕</span>
+      </header>
+      <div className="suggestion-content">
         {loading ? (
-          <p style={{ color: '#888' }}>生成中...</p>
+          <p className="empty-state">生成中...</p>
         ) : suggestion ? (
-          <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>{suggestion}</p>
+          <div className="suggestion-box">{suggestion}</div>
         ) : (
-          <p style={{ color: '#aaa' }}>
-            面试官问完后，点"生成建议"获取回答思路。
+          <p className="empty-state">
+            面试官问完后，点“生成建议”获取回答思路。
           </p>
         )}
-        {error && <p style={{ color: '#c00' }}>{error}</p>}
+        {error && <p className="suggestion-error">{error}</p>}
         {streaming && (
-          <p style={{ color: '#555', whiteSpace: 'pre-wrap' }}>{streaming}</p>
+          <p className="suggestion-streaming">{streaming}</p>
         )}
-        {followups.length > 0 && <hr style={{ margin: '12px 0' }} />}
+        {followups.length > 0 && <hr className="followup-divider" />}
         {followups.map((m, i) => (
           <p
             key={i}
-            style={{
-              textAlign: m.role === 'user' ? 'right' : 'left',
-              margin: '6px 0',
-            }}
+            className={`followup-message ${m.role === 'user' ? 'is-user' : 'is-assistant'}`}
           >
             <strong>{m.role === 'user' ? '你' : '助手'}：</strong>
-            <span style={{ whiteSpace: 'pre-wrap' }}>{m.content}</span>
+            <span>{m.content}</span>
           </p>
         ))}
       </div>
-      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+      <form
+        className="ask-form"
+        onSubmit={(event) => {
+          event.preventDefault()
+          send()
+        }}
+      >
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') send()
-          }}
           placeholder="追问（如：再详细点 / 换个角度）"
-          style={{ flex: 1 }}
         />
-        <button onClick={send}>发送</button>
-      </div>
-    </div>
+        <button type="submit">发送</button>
+      </form>
+    </section>
   )
 }
