@@ -65,6 +65,7 @@ export function SuggestPanel({
         }}
       >
         <input
+          aria-label="追问内容"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="追问（如：再详细点 / 换个角度）"
