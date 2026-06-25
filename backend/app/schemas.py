@@ -23,3 +23,16 @@ class SuggestResponse(BaseModel):
 class AskRequest(BaseModel):
     session_id: str
     message: str
+
+
+class DocumentInfo(BaseModel):
+    """文档元信息（列表/响应用，不含全文）。"""
+
+    id: str
+    filename: str
+    doc_type: str  # "resume" | "qa"
+    size_bytes: int
+
+
+class DocumentListResponse(BaseModel):
+    documents: list[DocumentInfo]
