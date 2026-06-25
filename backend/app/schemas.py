@@ -1,37 +1,48 @@
-"""Pydantic 数据模型（请求/响应/内部）。"""
+"""Pydantic 数据模型（请求/响应/内部）。
+
+简化后的模型：所有交互都是"在对话历史里加一条消息"。
+"""
 
 from pydantic import BaseModel
 
 
-class Turn(BaseModel):
-    """一轮问答。"""
+class Message(BaseModel):
+    """对话历史中的一条消息。"""
 
-    question: str
-    suggestion: str
+    role: str  # "system" | "user" | "assistant"
+    content: str
 
 
-class SuggestRequest(BaseModel):
+class ChatRequest(BaseModel):
+    """发送一条消息给 LLM（流式回复）。
+
+    - send_subtitles=True 时：把字幕区全部内容作为这条 user 消息，
+      并清空字幕区。message 字段忽略。
+    - 否则：用 message 作为这条 user 消息（手打的）。
+    """
+
     session_id: str
-    # 可选：手动输入的面试官问题。非空时走手动模式，不读/不清 session 累积。
-    question: str | None = None
+    message: str = ""
+    send_subtitles: bool = False
 
 
-class RemoveLineRequest(BaseModel):
-    """删除当前轮次的某一行字幕。"""
+class ResetRequest(BaseModel):
+    """清空整个对话历史。"""
+
+    session_id: str
+
+
+class RemoveSubtitleLineRequest(BaseModel):
+    """删除字幕区某一行。"""
 
     session_id: str
     line_index: int
 
 
-class SuggestResponse(BaseModel):
-    session_id: str
-    suggestion: str
-    question: str
+class ClearSubtitleRequest(BaseModel):
+    """清空字幕区。"""
 
-
-class AskRequest(BaseModel):
     session_id: str
-    message: str
 
 
 class DocumentInfo(BaseModel):

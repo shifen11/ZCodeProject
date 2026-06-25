@@ -1,34 +1,40 @@
-"""测试生成建议 / 追问 / 清空 路由。"""
+"""测试对话 + 重置 + 字幕操作 路由。"""
 
 import json
 from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
 
-from app.deps import get_document_store, get_llm, get_session_store, get_suggest_service
+from app.deps import get_chat_service, get_document_store, get_session_store
 from app.main import app
+from app.services.chat_service import ChatService
 from app.services.document_store import DocumentStore
 from app.services.session import SessionStore
-from app.services.suggest import SuggestService
 
 
-def _setup_session_with_turn():
-    store = SessionStore()
+def _override(store=None):
+    s = store or SessionStore()
+    app.dependency_overrides[get_session_store] = lambda: s
+    app.dependency_overrides[get_document_store] = lambda: DocumentStore()
+    return s
+
+
+def _svc(store, stream_chunks):
+    svc = ChatService(llm=MagicMock(), store=store)
+    svc._llm.stream.return_value = iter(stream_chunks)
+    app.dependency_overrides[get_chat_service] = lambda: svc
+    return svc
+
+
+def test_chat_with_message_streams_reply():
+    store = _override()
     s = store.create()
-    s.append_final("讲讲项目")
-    app.dependency_overrides[get_session_store] = lambda: store
-    return store, s
-
-
-def test_suggest_endpoint_streams_suggestion():
-    store, s = _setup_session_with_turn()
-    fake_llm = MagicMock()
-    fake_llm.stream.return_value = iter(["用 ", "STAR ", "回答"])
-    svc = SuggestService(llm=fake_llm, store=store)
-    app.dependency_overrides[get_suggest_service] = lambda: svc
+    _svc(store, ["回", "答"])
 
     client = TestClient(app)
-    with client.stream("POST", "/api/suggest", json={"session_id": s.session_id}) as resp:
+    with client.stream(
+        "POST", "/api/chat", json={"session_id": s.session_id, "message": "你好"}
+    ) as resp:
         assert resp.status_code == 200
         deltas = []
         for line in resp.iter_lines():
@@ -36,126 +42,73 @@ def test_suggest_endpoint_streams_suggestion():
                 payload = json.loads(line[6:])
                 if "delta" in payload:
                     deltas.append(payload["delta"])
-    assert "".join(deltas) == "用 STAR 回答"
-    # 流式结束后：当前轮次已清空，建议已存进 history
-    assert s.current_turn_text == ""
-    assert s.history_turns[-1].question == "讲讲项目"
-    assert s.history_turns[-1].suggestion == "用 STAR 回答"
+    assert "".join(deltas) == "回答"
+    # 消息已追加进历史
+    assert len(s.messages) == 2
     app.dependency_overrides.clear()
 
 
-def test_suggest_unknown_session_returns_404():
-    _setup_session_with_turn()
+def test_chat_with_send_subtitles_consumes_subtitle_area():
+    store = _override()
+    s = store.create()
+    s.add_subtitle("字幕第一句")
+    s.add_subtitle("字幕第二句")
+    fake = MagicMock()
+    fake.stream.return_value = iter(["建议"])
+    svc = ChatService(llm=fake, store=store)
+    app.dependency_overrides[get_chat_service] = lambda: svc
+
     client = TestClient(app)
-    resp = client.post("/api/suggest", json={"session_id": "nonexistent"})
-    assert resp.status_code == 404
+    with client.stream(
+        "POST", "/api/chat", json={"session_id": s.session_id, "send_subtitles": True}
+    ) as resp:
+        assert resp.status_code == 200
+
+    # 字幕区已清空，且内容作为 user 消息进了历史
+    assert s.subtitle_lines == []
+    assert s.messages[0].role == "user"
+    assert "字幕第一句" in s.messages[0].content
+    assert "字幕第二句" in s.messages[0].content
     app.dependency_overrides.clear()
 
 
-def test_suggest_empty_turn_returns_400():
-    store, s = _setup_session_with_turn()
-    s.clear_current_turn()  # 没有转写文本
-    fake_llm = MagicMock()
-    svc = SuggestService(llm=fake_llm, store=store)
-    app.dependency_overrides[get_suggest_service] = lambda: svc
-
+def test_chat_empty_content_returns_400():
+    store = _override()
+    s = store.create()
     client = TestClient(app)
-    resp = client.post("/api/suggest", json={"session_id": s.session_id})
+    resp = client.post("/api/chat", json={"session_id": s.session_id, "message": "   "})
     assert resp.status_code == 400
-    fake_llm.stream.assert_not_called()
     app.dependency_overrides.clear()
 
 
-def test_clear_endpoint_clears_history_only():
-    store, s = _setup_session_with_turn()
-    s.finalize_turn(suggestion="a")
-    s.append_final("当前")
-
+def test_chat_unknown_session_returns_404():
+    _override()
     client = TestClient(app)
-    resp = client.post("/api/clear", json={"session_id": s.session_id})
-    assert resp.status_code == 200
-    assert s.history_turns == []
-    # 当前进行中的轮次不动
-    assert s.current_turn_text == "当前"
-    app.dependency_overrides.clear()
-
-
-def test_ask_endpoint_streams_chunks():
-    store, s = _setup_session_with_turn()
-    s.finalize_turn(suggestion="原始建议")
-    fake_llm = MagicMock()
-    fake_llm.stream.return_value = iter(["你", "好"])
-    app.dependency_overrides[get_llm] = lambda: fake_llm
-    app.dependency_overrides[get_document_store] = lambda: DocumentStore()
-
-    client = TestClient(app)
-    with client.stream(
-        "GET",
-        "/api/ask",
-        params={"session_id": s.session_id, "message": "再详细"},
-    ) as resp:
-        assert resp.status_code == 200
-        deltas = []
-        for line in resp.iter_lines():
-            if line.startswith("data: "):
-                deltas.append(json.loads(line[6:])["delta"])
-    assert "".join(deltas) == "你好"
-    app.dependency_overrides.clear()
-
-
-def test_ask_endpoint_includes_resume_in_context():
-    store, s = _setup_session_with_turn()
-    s.finalize_turn(suggestion="原始建议")
-    docs = DocumentStore()
-    docs.add(filename="r.pdf", doc_type="resume", text="简历关键词XYZ", size_bytes=10)
-    app.dependency_overrides[get_document_store] = lambda: docs
-    fake_llm = MagicMock()
-    fake_llm.stream.return_value = iter(["ok"])
-    app.dependency_overrides[get_llm] = lambda: fake_llm
-
-    client = TestClient(app)
-    with client.stream("GET", "/api/ask", params={"session_id": s.session_id, "message": "m"}) as resp:
-        assert resp.status_code == 200
-
-    sent_messages = fake_llm.stream.call_args.args[0]
-    assert "简历关键词XYZ" in sent_messages[0]["content"]
-    app.dependency_overrides.clear()
-
-
-def test_ask_unknown_session_returns_404():
-    _setup_session_with_turn()
-    client = TestClient(app)
-    resp = client.get(
-        "/api/ask", params={"session_id": "nonexistent", "message": "hi"}
-    )
+    resp = client.post("/api/chat", json={"session_id": "nope", "message": "x"})
     assert resp.status_code == 404
     app.dependency_overrides.clear()
 
 
-def test_suggest_with_manual_question_works_without_subtitle():
-    """手动问题：即使 session 无字幕也能生成。"""
-    store, s = _setup_session_with_turn()
-    s.clear_current_turn()  # 清掉字幕，模拟无语音输入
-    fake_llm = MagicMock()
-    fake_llm.stream.return_value = iter(["建议"])
-    svc = SuggestService(llm=fake_llm, store=store)
-    app.dependency_overrides[get_suggest_service] = lambda: svc
+def test_reset_clears_history_only():
+    store = _override()
+    s = store.create()
+    s.add_message("user", "hi")
+    s.add_subtitle("字幕")
 
     client = TestClient(app)
-    with client.stream(
-        "POST",
-        "/api/suggest",
-        json={"session_id": s.session_id, "question": "手动输入的问题"},
-    ) as resp:
-        assert resp.status_code == 200
-    # 手动问题已结转进 history
-    assert s.history_turns[-1].question == "手动输入的问题"
+    resp = client.post("/api/reset", json={"session_id": s.session_id})
+    assert resp.status_code == 200
+    assert s.messages == []
+    # 字幕不动
+    assert s.subtitle_lines == ["字幕"]
     app.dependency_overrides.clear()
 
 
-def test_remove_line_endpoint_deletes_specific_line():
-    store, s = _setup_session_with_turn()
-    s.append_final("第二句")
+def test_remove_subtitle_line_endpoint():
+    store = _override()
+    s = store.create()
+    s.add_subtitle("一")
+    s.add_subtitle("二")
 
     client = TestClient(app)
     resp = client.post(
@@ -163,30 +116,42 @@ def test_remove_line_endpoint_deletes_specific_line():
         json={"session_id": s.session_id, "line_index": 0},
     )
     assert resp.status_code == 200
-    assert resp.json()["remaining_lines"] == ["第二句"]
-    assert s.current_turn_text == "第二句"
+    assert resp.json()["remaining_lines"] == ["二"]
     app.dependency_overrides.clear()
 
 
-def test_remove_line_out_of_range_returns_400():
-    store, s = _setup_session_with_turn()
-
-    client = TestClient(app)
-    resp = client.post(
-        "/api/subtitle/remove-line",
-        json={"session_id": s.session_id, "line_index": 99},
-    )
-    assert resp.status_code == 400
-    app.dependency_overrides.clear()
-
-
-def test_clear_subtitle_endpoint_empties_current_turn():
-    store, s = _setup_session_with_turn()
-    s.append_final("更多内容")
+def test_clear_subtitle_endpoint():
+    store = _override()
+    s = store.create()
+    s.add_subtitle("一")
+    s.add_message("user", "对话")
 
     client = TestClient(app)
     resp = client.post("/api/subtitle/clear", json={"session_id": s.session_id})
     assert resp.status_code == 200
-    assert resp.json()["cleared"] is True
-    assert s.current_turn_text == ""
+    assert s.subtitle_lines == []
+    assert len(s.messages) == 1
+    app.dependency_overrides.clear()
+
+
+def test_chat_includes_resume_in_context():
+    """对话时 LLM 收到的 system 含简历。"""
+    store = _override()
+    s = store.create()
+    docs = DocumentStore()
+    docs.add(filename="r.pdf", doc_type="resume", text="简历关键词XYZ", size_bytes=10)
+    app.dependency_overrides[get_document_store] = lambda: docs
+    fake = MagicMock()
+    fake.stream.return_value = iter(["ok"])
+    svc = ChatService(llm=fake, store=store, doc_store=docs)
+    app.dependency_overrides[get_chat_service] = lambda: svc
+
+    client = TestClient(app)
+    with client.stream(
+        "POST", "/api/chat", json={"session_id": s.session_id, "message": "m"}
+    ) as resp:
+        assert resp.status_code == 200
+
+    sent_messages = fake.stream.call_args.args[0]
+    assert "简历关键词XYZ" in sent_messages[0]["content"]
     app.dependency_overrides.clear()

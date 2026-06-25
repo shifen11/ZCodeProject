@@ -116,7 +116,7 @@ def _make_on_final(session, store: SessionStore, send_fn):
     def on_final(text: str) -> None:
         if session is None:
             return
-        session.append_final(text)
+        session.add_subtitle(text)
         send_fn(
             {"type": "final", "text": text, "session_id": session.session_id}
         )

@@ -1,11 +1,19 @@
-"""会话状态管理（内存）。本期单进程、不持久化。"""
+"""会话状态管理（内存）。本期单进程、不持久化。
+
+简化后的模型：一个会话 = 一个聊天对话历史 + 一个独立字幕暂存区。
+
+- messages：发给 LLM 的对话历史，永远累积（整场面试一个对话）。
+- subtitle_lines：语音识别出的字幕，是"采集区"，用户确认后整体发出去，
+  发送时打包成一条 user message 追加进 messages，然后清空。
+两者独立：删字幕/清字幕不影响对话历史。
+"""
 
 from __future__ import annotations
 
 import uuid
 from typing import Dict, List
 
-from app.schemas import Turn
+from app.schemas import Message
 
 
 class InterviewSession:
@@ -13,43 +21,52 @@ class InterviewSession:
 
     def __init__(self, session_id: str) -> None:
         self.session_id = session_id
-        # 当前轮次累积的定稿句子（按到达顺序）。支持单句删除/全部清空。
-        self.current_turn_lines: List[str] = []
-        self.history_turns: List[Turn] = []
+        # 发给 LLM 的对话历史（role/content）。整场面试累积，不自动清。
+        self.messages: List[Message] = []
+        # 字幕暂存区：语音识别的定稿句子。发送给 LLM 时整体打包，然后清空。
+        self.subtitle_lines: List[str] = []
 
     @property
-    def current_turn_text(self) -> str:
-        """当前轮次的完整文本（所有定稿句子用换行拼接）。只读。"""
-        return "\n".join(self.current_turn_lines)
+    def subtitle_text(self) -> str:
+        """字幕区的完整文本（换行拼接）。只读。"""
+        return "\n".join(self.subtitle_lines)
 
-    def append_final(self, text: str) -> None:
-        """追加一句定稿字幕到当前轮次。空文本忽略。"""
+    # ---- 对话历史 ----
+    def add_message(self, role: str, content: str) -> None:
+        """追加一条对话消息到历史。"""
+        content = content.strip()
+        if not content:
+            return
+        self.messages.append(Message(role=role, content=content))
+
+    def clear_messages(self) -> None:
+        """清空整个对话历史（重置，罕见操作）。"""
+        self.messages = []
+
+    # ---- 字幕区 ----
+    def add_subtitle(self, text: str) -> None:
+        """追加一句语音定稿字幕。空文本忽略。"""
         text = text.strip()
         if not text:
             return
-        self.current_turn_lines.append(text)
+        self.subtitle_lines.append(text)
 
-    def remove_line(self, index: int) -> bool:
-        """删除当前轮次的第 index 行（0 基）。越界返回 False。"""
-        if 0 <= index < len(self.current_turn_lines):
-            del self.current_turn_lines[index]
+    def remove_subtitle_line(self, index: int) -> bool:
+        """删除字幕区第 index 行（0 基）。越界返回 False。"""
+        if 0 <= index < len(self.subtitle_lines):
+            del self.subtitle_lines[index]
             return True
         return False
 
-    def clear_current_turn(self) -> None:
-        """清空当前轮次的所有定稿句子（不影响历史轮次）。"""
-        self.current_turn_lines = []
+    def clear_subtitles(self) -> None:
+        """清空字幕区（不影响对话历史）。"""
+        self.subtitle_lines = []
 
-    def finalize_turn(self, suggestion: str) -> None:
-        """把当前轮次结转为历史，记录建议，清空当前轮次。"""
-        self.history_turns.append(
-            Turn(question=self.current_turn_text, suggestion=suggestion)
-        )
-        self.current_turn_lines = []
-
-    def clear_history(self) -> None:
-        """清空历史轮次，但保留当前正在进行的轮次。"""
-        self.history_turns = []
+    def consume_subtitles(self) -> str:
+        """把字幕区全部内容打包返回，并清空字幕区。空时返回空串。"""
+        text = self.subtitle_text
+        self.subtitle_lines = []
+        return text
 
 
 class SessionStore:
@@ -72,8 +89,3 @@ class SessionStore:
         if existing is not None:
             return existing
         return self.create()
-
-    def clear_history(self, session_id: str) -> None:
-        s = self.get(session_id)
-        if s is not None:
-            s.clear_history()

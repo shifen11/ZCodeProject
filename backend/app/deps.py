@@ -1,15 +1,12 @@
-"""依赖注入：全局单例服务。
-
-用 lru_cache 保证进程内单例。测试时可通过 app.dependency_overrides 覆盖。
-"""
+"""依赖注入：全局单例服务。"""
 
 from fastapi import Depends
 
 from app.config import Settings, get_settings
+from app.services.chat_service import ChatService
 from app.services.document_store import DocumentStore
 from app.services.llm import LlmClient
 from app.services.session import SessionStore
-from app.services.suggest import SuggestService
 from app.services.token_provider import NlsTokenProvider
 
 # 进程级单例：会话存储本身无配置依赖，直接复用。
@@ -40,9 +37,9 @@ def get_token_provider(
     )
 
 
-def get_suggest_service(
+def get_chat_service(
     settings: Settings = Depends(get_settings),
     store: SessionStore = Depends(get_session_store),
     doc_store: DocumentStore = Depends(get_document_store),
-) -> SuggestService:
-    return SuggestService(llm=get_llm(settings), store=store, doc_store=doc_store)
+) -> ChatService:
+    return ChatService(llm=get_llm(settings), store=store, doc_store=doc_store)
