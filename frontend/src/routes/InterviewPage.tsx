@@ -33,9 +33,12 @@ function InterviewPage() {
     subtitle.close()
   }
 
-  // 发送字幕：把字幕区全部内容发给 LLM。成功后清前端字幕（后端已消费并清空）。
+  // 发送字幕：把字幕区全部内容发给 LLM。字幕文本像手打一样显示在右侧对话区。
+  // 成功后清前端字幕（后端已消费并清空）。
   const onSendSubtitles = useCallback(async () => {
-    const ok = await chat.sendSubtitles()
+    const text = subtitle.lines.map((l) => l.text).join('\n').trim()
+    if (!text) return
+    const ok = await chat.sendSubtitles(text)
     if (ok) {
       subtitle.clearLines()
     }

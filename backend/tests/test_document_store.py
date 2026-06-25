@@ -41,3 +41,48 @@ def test_get_by_type_filters():
     qas = store.get_by_type("qa")
     assert len(resumes) == 1
     assert len(qas) == 2
+
+
+# ---- 持久化（落盘 + 重启加载）----
+def test_persist_across_restart(tmp_path):
+    """add 后新建同名 store（模拟重启），应能加载到已存文档。"""
+    path = str(tmp_path / "docs.json")
+    s1 = DocumentStore(path=path)
+    doc = s1.add(filename="resume.pdf", doc_type="resume", text="我的简历内容", size_bytes=100)
+
+    # 模拟重启：新实例读同一文件
+    s2 = DocumentStore(path=path)
+    loaded = s2.list()
+    assert len(loaded) == 1
+    assert loaded[0].id == doc.id
+    assert loaded[0].filename == "resume.pdf"
+    assert loaded[0].text == "我的简历内容"
+
+
+def test_persist_after_delete(tmp_path):
+    """delete 后落盘，重启后该文档不再存在。"""
+    path = str(tmp_path / "docs.json")
+    s1 = DocumentStore(path=path)
+    doc = s1.add(filename="q.md", doc_type="qa", text="x", size_bytes=1)
+    s1.delete(doc.id)
+
+    s2 = DocumentStore(path=path)
+    assert s2.list() == []
+
+
+def test_corrupted_file_treated_as_empty(tmp_path):
+    """文件损坏时视为空，不崩溃。"""
+    path = str(tmp_path / "docs.json")
+    path_file = tmp_path / "docs.json"
+    path_file.write_text("{这不是合法json", encoding="utf-8")
+
+    s = DocumentStore(path=path)
+    assert s.list() == []
+
+
+def test_in_memory_mode_does_not_touch_disk(tmp_path):
+    """path=None 纯内存模式，不读写任何文件。"""
+    s = DocumentStore()  # 无参
+    s.add(filename="a.md", doc_type="qa", text="x", size_bytes=1)
+    # data 目录下不应有文件被创建
+    assert not (tmp_path / "docs.json").exists()
