@@ -29,12 +29,19 @@ async function* readSseStream(
   }
 }
 
-/** SSE 流式生成建议：逐 token yield。 */
-export async function* streamSuggest(sessionId: string): AsyncGenerator<string> {
+/** SSE 流式生成建议：逐 token yield。question 非空时走手动输入模式。 */
+export async function* streamSuggest(
+  sessionId: string,
+  question?: string,
+): AsyncGenerator<string> {
+  const body: Record<string, unknown> = { session_id: sessionId }
+  if (question && question.trim()) {
+    body.question = question.trim()
+  }
   const resp = await fetch(`${BASE}/suggest`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ session_id: sessionId }),
+    body: JSON.stringify(body),
   })
   yield* readSseStream(resp, '生成失败')
 }
@@ -46,6 +53,31 @@ export async function postClear(sessionId: string): Promise<void> {
     body: JSON.stringify({ session_id: sessionId }),
   })
   if (!resp.ok) throw new Error(`清空失败：${resp.status}`)
+}
+
+/** 删除当前轮次的某一行字幕。返回剩余行。 */
+export async function removeSubtitleLine(
+  sessionId: string,
+  lineIndex: number,
+): Promise<string[]> {
+  const resp = await fetch(`${BASE}/subtitle/remove-line`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: sessionId, line_index: lineIndex }),
+  })
+  if (!resp.ok) throw new Error(`删除失败：${resp.status}`)
+  const data = await resp.json()
+  return data.remaining_lines as string[]
+}
+
+/** 清空当前轮次的所有字幕（影响后端 current_turn_text）。 */
+export async function clearSubtitle(sessionId: string): Promise<void> {
+  const resp = await fetch(`${BASE}/subtitle/clear`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: sessionId }),
+  })
+  if (!resp.ok) throw new Error(`清空字幕失败：${resp.status}`)
 }
 
 /** SSE 流式追问：逐 token yield。 */

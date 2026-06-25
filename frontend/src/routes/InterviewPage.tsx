@@ -39,6 +39,18 @@ function InterviewPage() {
     }
   }, [chat, subtitle])
 
+  // 手动输入问题生成建议：走手动模式（后端不动语音累积）。
+  // 成功后清左侧显示（手动问题独立成轮，与语音字幕分离）。
+  const onManualAsk = useCallback(
+    async (question: string) => {
+      const ok = await chat.generate(question)
+      if (ok) {
+        subtitle.clearLines()
+      }
+    },
+    [chat, subtitle],
+  )
+
   const onClear = useCallback(async () => {
     await chat.clear()
     subtitle.clearLines()
@@ -68,6 +80,9 @@ function InterviewPage() {
           <SubtitlePanel
             lines={subtitle.lines}
             currentPartial={subtitle.currentPartial}
+            onRemoveLine={subtitle.removeLine}
+            onClearAll={subtitle.clearAll}
+            onManualAsk={onManualAsk}
           />
           <SuggestPanel
             suggestion={chat.suggestion}

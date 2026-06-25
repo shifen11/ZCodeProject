@@ -13,14 +13,15 @@ export function useChat(sessionId: string) {
   const [error, setError] = useState('')
 
   // 生成建议：流式返回，逐 token 累积显示。成功返回 true。
-  const generate = useCallback(async (): Promise<boolean> => {
+  // question 非空时走手动输入模式（不读/不清语音字幕）。
+  const generate = useCallback(async (question?: string): Promise<boolean> => {
     if (!sessionId) return false
     setLoading(true)
     setError('')
     setSuggestion('')
     try {
       let acc = ''
-      for await (const delta of streamSuggest(sessionId)) {
+      for await (const delta of streamSuggest(sessionId, question)) {
         acc += delta
         setSuggestion(acc)
       }
