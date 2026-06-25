@@ -588,3 +588,126 @@ input:focus-visible {
   opacity: 0.55;
   cursor: not-allowed;
 }
+
+/* 会话侧边栏（ChatGPT 式多会话） */
+
+.app-frame-with-sidebar {
+  flex-direction: row;
+  gap: 18px;
+}
+
+.app-main {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 0;
+}
+
+.session-sidebar {
+  flex: 0 0 248px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.new-session-btn {
+  flex: 0 0 auto;
+  padding: 10px 14px;
+  border: 1px dashed var(--color-primary);
+  border-radius: 10px;
+  color: var(--color-primary);
+  background: var(--color-bg-accent);
+  font-size: 0.9rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+
+.new-session-btn:hover {
+  background: #e7ecff;
+}
+
+.session-list {
+  flex: 1 1 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.session-item {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  margin-bottom: 4px;
+  border-radius: 10px;
+  transition: background 120ms ease;
+}
+
+.session-item:hover {
+  background: var(--color-bg-accent);
+}
+
+.session-item.is-active {
+  background: #e7ecff;
+}
+
+.session-select {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.session-title {
+  font-size: 0.88rem;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.session-time {
+  font-size: 0.72rem;
+  color: #9aa4ba;
+}
+
+.session-delete {
+  flex: 0 0 auto;
+  width: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  color: #b8c0d4;
+  background: transparent;
+  font-size: 1rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease, color 120ms ease, background 120ms ease;
+}
+
+.session-item:hover .session-delete,
+.session-item.is-active .session-delete {
+  opacity: 1;
+}
+
+.session-delete:hover {
+  color: #b5252a;
+  background: #ffe8e8;
+}

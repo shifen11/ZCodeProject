@@ -10,6 +10,55 @@ export async function createSession(): Promise<string> {
   return data.session_id as string
 }
 
+export interface SessionSummary {
+  session_id: string
+  title: string
+  updated_at: number
+}
+
+export interface SessionDetail {
+  session_id: string
+  title: string | null
+  messages: { role: string; content: string }[]
+  subtitle_lines: string[]
+}
+
+/** 列出所有会话摘要（按更新时间倒序）。 */
+export async function listSessions(): Promise<SessionSummary[]> {
+  const resp = await fetch(`${BASE}/sessions`)
+  if (!resp.ok) throw new Error(`获取会话列表失败：${resp.status}`)
+  const data = await resp.json()
+  return data.sessions as SessionSummary[]
+}
+
+/** 获取某个会话的完整内容（切换会话时加载历史）。 */
+export async function getSession(sessionId: string): Promise<SessionDetail> {
+  const resp = await fetch(`${BASE}/session/${sessionId}`)
+  if (!resp.ok) throw new Error(`获取会话失败：${resp.status}`)
+  return resp.json()
+}
+
+/** 删除某个会话。 */
+export async function deleteSession(sessionId: string): Promise<void> {
+  const resp = await fetch(`${BASE}/session/${sessionId}`, { method: 'DELETE' })
+  if (!resp.ok) throw new Error(`删除会话失败：${resp.status}`)
+}
+
+/** 重命名某个会话。返回新标题。 */
+export async function renameSession(
+  sessionId: string,
+  title: string,
+): Promise<string> {
+  const resp = await fetch(`${BASE}/session/rename`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: sessionId, title }),
+  })
+  if (!resp.ok) throw new Error(`重命名失败：${resp.status}`)
+  const data = await resp.json()
+  return data.title as string
+}
+
 /** SSE 流式读取通用工具：把 fetch 的 SSE 响应逐 token yield。 */
 async function* readSseStream(
   resp: Response,

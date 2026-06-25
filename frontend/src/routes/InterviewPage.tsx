@@ -2,18 +2,20 @@ import { useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { ChatPanel } from '../components/ChatPanel'
 import { Controls } from '../components/Controls'
+import { SessionSidebar } from '../components/SessionSidebar'
 import { SubtitlePanel } from '../components/SubtitlePanel'
 import { useAudioCapture } from '../hooks/useAudioCapture'
 import { useChat } from '../hooks/useChat'
-import { useSession } from '../hooks/useSession'
+import { useSessions } from '../hooks/useSessions'
 import { useSubtitle } from '../hooks/useSubtitle'
 
 /**
- * 面试助手页：左侧字幕区（采集）+ 右侧对话区（和 GLM 聊）。
- * 会话由 useSession 在页面加载时创建，对话/字幕共享，不依赖音频采集。
+ * 面试助手页：左侧会话列表 + 字幕区 + 右侧对话区。
+ * 像 ChatGPT 那样支持多会话切换。
  */
 function InterviewPage() {
-  const { sessionId, error: sessionError } = useSession()
+  const sessions = useSessions()
+  const sessionId = sessions.currentId
   const subtitle = useSubtitle(sessionId)
   const chat = useChat(sessionId)
 
@@ -25,7 +27,7 @@ function InterviewPage() {
     useAudioCapture(handleChunk)
 
   const onStart = async () => {
-    subtitle.connect()
+    subtitle.connect(sessionId)
     await start()
   }
   const onStop = () => {
@@ -33,48 +35,74 @@ function InterviewPage() {
     subtitle.close()
   }
 
-  // 发送字幕：把字幕区全部内容发给 LLM。字幕文本像手打一样显示在右侧对话区。
-  // 成功后清前端字幕（后端已消费并清空）。
+  // 发送字幕后刷新会话列表（标题可能因首条消息变化）
   const onSendSubtitles = useCallback(async () => {
     const text = subtitle.lines.map((l) => l.text).join('\n').trim()
     if (!text) return
     const ok = await chat.sendSubtitles(text)
     if (ok) {
       subtitle.clearLines()
+      sessions.refresh()
     }
-  }, [chat, subtitle])
+  }, [chat, subtitle, sessions])
+
+  const onManualSend = useCallback(
+    async (message: string) => {
+      await chat.send(message)
+      sessions.refresh()
+    },
+    [chat, sessions],
+  )
+
+  const onReset = useCallback(async () => {
+    await chat.reset()
+    sessions.refresh()
+  }, [chat, sessions])
 
   return (
     <main className="app-shell">
-      <div className="app-frame">
-        <div className="top-nav">
-          <Link to="/manage" className="manage-link">
-            管理简历/文档
-          </Link>
-        </div>
-        <Controls isCapturing={isCapturing} onStart={onStart} onStop={onStop} />
-        {(captureError || subtitle.error || sessionError) && (
-          <div className="error-banner" role="alert">
-            {captureError || subtitle.error || sessionError}
+      <div className="app-frame app-frame-with-sidebar">
+        <SessionSidebar
+          sessions={sessions.sessions}
+          currentId={sessionId}
+          onSelect={sessions.switchTo}
+          onCreate={sessions.createNew}
+          onDelete={sessions.remove}
+        />
+        <div className="app-main">
+          <div className="top-nav">
+            <Link to="/manage" className="manage-link">
+              管理简历/文档
+            </Link>
           </div>
-        )}
-        <section className="workspace" aria-label="面试辅助工作区">
-          <SubtitlePanel
-            lines={subtitle.lines}
-            currentPartial={subtitle.currentPartial}
-            onRemoveLine={subtitle.removeLine}
-            onClearAll={subtitle.clearAll}
-            onSendSubtitles={onSendSubtitles}
+          <Controls
+            isCapturing={isCapturing}
+            onStart={onStart}
+            onStop={onStop}
           />
-          <ChatPanel
-            messages={chat.messages}
-            streaming={chat.streaming}
-            loading={chat.loading}
-            error={chat.error}
-            onSend={chat.send}
-            onReset={chat.reset}
-          />
-        </section>
+          {(captureError || subtitle.error || sessions.error) && (
+            <div className="error-banner" role="alert">
+              {captureError || subtitle.error || sessions.error}
+            </div>
+          )}
+          <section className="workspace" aria-label="面试辅助工作区">
+            <SubtitlePanel
+              lines={subtitle.lines}
+              currentPartial={subtitle.currentPartial}
+              onRemoveLine={subtitle.removeLine}
+              onClearAll={subtitle.clearAll}
+              onSendSubtitles={onSendSubtitles}
+            />
+            <ChatPanel
+              messages={chat.messages}
+              streaming={chat.streaming}
+              loading={chat.loading}
+              error={chat.error}
+              onSend={onManualSend}
+              onReset={onReset}
+            />
+          </section>
+        </div>
       </div>
     </main>
   )

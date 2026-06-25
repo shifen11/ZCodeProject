@@ -1,23 +1,41 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { AsrSocket } from '../api/asrSocket'
-import { clearSubtitle, removeSubtitleLine } from '../api/chat'
+import { clearSubtitle, getSession, removeSubtitleLine } from '../api/chat'
 import type { SubtitleLine } from '../types'
 
 /**
  * 管理字幕：连 ASR WebSocket，维护当前识别中的句子 + 定稿历史。
  *
- * sessionId 由外部传入（useSession 统一管理），WS 连接时复用，
+ * sessionId 由外部传入（useSessions 统一管理），WS 连接时复用，
  * 使字幕进同一个会话（对话/字幕共享）。
- *
- * 字幕操作分两类：
- * - 本地清空（clearLines）：仅前端清显示，发送字幕后重置，不碰后端。
- * - 同步操作（removeLine / clearAll）：同时改后端 subtitle_lines。
+ * 切换会话时从后端加载该会话的字幕暂存区。
  */
 export function useSubtitle(sessionId: string) {
   const [lines, setLines] = useState<SubtitleLine[]>([])
   const [currentPartial, setCurrentPartial] = useState('')
   const [error, setError] = useState('')
   const socketRef = useRef<AsrSocket | null>(null)
+
+  // 切换会话时加载该会话的字幕区
+  useEffect(() => {
+    if (!sessionId) {
+      setLines([])
+      return
+    }
+    let cancelled = false
+    getSession(sessionId)
+      .then((detail) => {
+        if (!cancelled) {
+          setLines(detail.subtitle_lines.map((t) => ({ text: t, isFinal: true })))
+        }
+      })
+      .catch(() => {
+        // 加载失败不阻塞，保持空字幕
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [sessionId])
 
   const connect = useCallback(() => {
     const socket = new AsrSocket({
