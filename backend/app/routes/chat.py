@@ -5,9 +5,10 @@ import json
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
-from app.deps import get_llm, get_session_store, get_suggest_service
-from app.prompts import SYSTEM_PROMPT
+from app.deps import get_document_store, get_llm, get_session_store, get_suggest_service
+from app.prompts import build_system_prompt
 from app.schemas import SuggestRequest
+from app.services.document_store import DocumentStore
 from app.services.llm import LlmClient
 from app.services.session import SessionStore
 from app.services.suggest import CURRENT_TURN_PREFIX, SuggestService
@@ -59,13 +60,17 @@ def ask_endpoint(
     message: str,
     store: SessionStore = Depends(get_session_store),
     llm: LlmClient = Depends(get_llm),
+    doc_store: DocumentStore = Depends(get_document_store),
 ) -> StreamingResponse:
     session = store.get(session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="session not found")
 
-    # 组装追问的 messages：system + 历史轮次 + 用户追问
-    messages: list[dict] = [{"role": "system", "content": SYSTEM_PROMPT}]
+    # 组装追问的 messages：system(含简历/题库) + 历史轮次 + 用户追问
+    resume_text = "\n\n".join(d.text for d in doc_store.get_by_type("resume"))
+    qa_text = "\n\n".join(d.text for d in doc_store.get_by_type("qa"))
+    system_prompt = build_system_prompt(resume_text=resume_text, qa_text=qa_text)
+    messages: list[dict] = [{"role": "system", "content": system_prompt}]
     for turn in session.history_turns:
         messages.append({"role": "user", "content": CURRENT_TURN_PREFIX + turn.question})
         messages.append({"role": "assistant", "content": turn.suggestion})

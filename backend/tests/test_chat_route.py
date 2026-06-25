@@ -5,8 +5,9 @@ from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
 
-from app.deps import get_llm, get_session_store, get_suggest_service
+from app.deps import get_document_store, get_llm, get_session_store, get_suggest_service
 from app.main import app
+from app.services.document_store import DocumentStore
 from app.services.session import SessionStore
 from app.services.suggest import SuggestService
 
@@ -85,6 +86,7 @@ def test_ask_endpoint_streams_chunks():
     fake_llm = MagicMock()
     fake_llm.stream.return_value = iter(["你", "好"])
     app.dependency_overrides[get_llm] = lambda: fake_llm
+    app.dependency_overrides[get_document_store] = lambda: DocumentStore()
 
     client = TestClient(app)
     with client.stream(
@@ -98,6 +100,25 @@ def test_ask_endpoint_streams_chunks():
             if line.startswith("data: "):
                 deltas.append(json.loads(line[6:])["delta"])
     assert "".join(deltas) == "你好"
+    app.dependency_overrides.clear()
+
+
+def test_ask_endpoint_includes_resume_in_context():
+    store, s = _setup_session_with_turn()
+    s.finalize_turn(suggestion="原始建议")
+    docs = DocumentStore()
+    docs.add(filename="r.pdf", doc_type="resume", text="简历关键词XYZ", size_bytes=10)
+    app.dependency_overrides[get_document_store] = lambda: docs
+    fake_llm = MagicMock()
+    fake_llm.stream.return_value = iter(["ok"])
+    app.dependency_overrides[get_llm] = lambda: fake_llm
+
+    client = TestClient(app)
+    with client.stream("GET", "/api/ask", params={"session_id": s.session_id, "message": "m"}) as resp:
+        assert resp.status_code == 200
+
+    sent_messages = fake_llm.stream.call_args.args[0]
+    assert "简历关键词XYZ" in sent_messages[0]["content"]
     app.dependency_overrides.clear()
 
 
