@@ -75,33 +75,41 @@ function InterviewPage() {
               管理简历/文档
             </Link>
           </div>
-          <Controls
-            isCapturing={isCapturing}
-            onStart={onStart}
-            onStop={onStop}
-          />
-          {(captureError || subtitle.error || sessions.error) && (
-            <div className="error-banner" role="alert">
-              {captureError || subtitle.error || sessions.error}
+          {sessionId ? (
+            <>
+              <Controls
+                isCapturing={isCapturing}
+                onStart={onStart}
+                onStop={onStop}
+              />
+              {(captureError || subtitle.error || sessions.error) && (
+                <div className="error-banner" role="alert">
+                  {captureError || subtitle.error || sessions.error}
+                </div>
+              )}
+              <section className="workspace" aria-label="面试辅助工作区">
+                <SubtitlePanel
+                  lines={subtitle.lines}
+                  currentPartial={subtitle.currentPartial}
+                  onRemoveLine={subtitle.removeLine}
+                  onClearAll={subtitle.clearAll}
+                  onSendSubtitles={onSendSubtitles}
+                />
+                <ChatPanel
+                  messages={chat.messages}
+                  streaming={chat.streaming}
+                  loading={chat.loading}
+                  error={chat.error}
+                  onSend={onManualSend}
+                  onReset={onReset}
+                />
+              </section>
+            </>
+          ) : (
+            <div className="empty-main-state">
+              <p>还没有会话，点左侧"+ 新建对话"开始。</p>
             </div>
           )}
-          <section className="workspace" aria-label="面试辅助工作区">
-            <SubtitlePanel
-              lines={subtitle.lines}
-              currentPartial={subtitle.currentPartial}
-              onRemoveLine={subtitle.removeLine}
-              onClearAll={subtitle.clearAll}
-              onSendSubtitles={onSendSubtitles}
-            />
-            <ChatPanel
-              messages={chat.messages}
-              streaming={chat.streaming}
-              loading={chat.loading}
-              error={chat.error}
-              onSend={onManualSend}
-              onReset={onReset}
-            />
-          </section>
         </div>
       </div>
     </main>

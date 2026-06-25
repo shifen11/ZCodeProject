@@ -31,22 +31,18 @@ export function useSessions() {
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      // 先拉列表
+      // 先拉列表，有会话则进最近的（或恢复 localStorage 记的），没有则保持空（不自动建）
       try {
         const list = await listSessions()
         if (cancelled) return
         setSessions(list)
-        // 读上次会话，优先复用；不存在则新建
         const last = localStorage.getItem(LAST_SESSION_KEY) ?? ''
         if (last && list.some((s) => s.session_id === last)) {
           setCurrentId(last)
-        } else {
-          const newId = await createSession()
-          if (cancelled) return
-          localStorage.setItem(LAST_SESSION_KEY, newId)
-          setCurrentId(newId)
-          setSessions(await listSessions())
+        } else if (list.length > 0) {
+          setCurrentId(list[0].session_id)
         }
+        // 列表为空时 currentId 保持 ''，前端显示"新建对话"引导
       } catch (e) {
         if (!cancelled) setError((e as Error).message)
       }
@@ -85,11 +81,8 @@ export function useSessions() {
           if (list.length > 0) {
             switchTo(list[0].session_id)
           } else {
-            // 全删空了，新建一个
-            const newId = await createSession()
-            localStorage.setItem(LAST_SESSION_KEY, newId)
-            setCurrentId(newId)
-            setSessions(await listSessions())
+            // 全删空了，保持空状态，让用户手动新建
+            setCurrentId('')
           }
         }
       } catch (e) {
