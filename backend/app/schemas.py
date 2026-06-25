@@ -45,6 +45,29 @@ class ClearSubtitleRequest(BaseModel):
     session_id: str
 
 
+class RenameSessionRequest(BaseModel):
+    """重命名会话。"""
+
+    session_id: str
+    title: str
+
+
+class SessionMessage(BaseModel):
+    """会话详情里的一条消息（给前端回显历史用）。"""
+
+    role: str
+    content: str
+
+
+class SessionDetail(BaseModel):
+    """会话详情（切换会话时加载）。"""
+
+    session_id: str
+    title: str | None
+    messages: list[SessionMessage]
+    subtitle_lines: list[str]
+
+
 class DocumentInfo(BaseModel):
     """文档元信息（列表/响应用，不含全文）。"""
 

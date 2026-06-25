@@ -117,6 +117,7 @@ def _make_on_final(session, store: SessionStore, send_fn):
         if session is None:
             return
         session.add_subtitle(text)
+        store.save(session.session_id)  # 字幕更新落盘
         send_fn(
             {"type": "final", "text": text, "session_id": session.session_id}
         )

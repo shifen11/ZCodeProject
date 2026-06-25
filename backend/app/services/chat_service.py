@@ -54,11 +54,13 @@ class ChatService:
             raise KeyError(f"session not found: {session_id}")
         # 追加 user 消息
         session.add_message("user", user_content)
+        self._store.save(session_id)
         # 流式生成
         messages = self.build_messages(session)
         acc: list[str] = []
         for delta in self._llm.stream(messages):
             acc.append(delta)
             yield delta
-        # 追加完整 assistant 回复进历史
+        # 追加完整 assistant 回复进历史并落盘
         session.add_message("assistant", "".join(acc))
+        self._store.save(session_id)

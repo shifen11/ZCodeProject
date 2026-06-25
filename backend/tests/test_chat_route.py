@@ -38,6 +38,72 @@ def test_create_session_returns_id():
     app.dependency_overrides.clear()
 
 
+def test_list_sessions_returns_summaries():
+    store = _override()
+    s = store.create()
+    s.add_message("user", "阿里面试问题")
+    client = TestClient(app)
+    resp = client.get("/api/sessions")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["sessions"]) == 1
+    assert data["sessions"][0]["title"] == "阿里面试问题"
+    app.dependency_overrides.clear()
+
+
+def test_get_session_returns_detail():
+    store = _override()
+    s = store.create()
+    s.add_message("user", "hi")
+    s.add_message("assistant", "hello")
+    s.add_subtitle("字幕A")
+
+    client = TestClient(app)
+    resp = client.get(f"/api/session/{s.session_id}")
+    assert resp.status_code == 200
+    detail = resp.json()
+    assert detail["session_id"] == s.session_id
+    assert len(detail["messages"]) == 2
+    assert detail["messages"][0]["content"] == "hi"
+    assert detail["subtitle_lines"] == ["字幕A"]
+    app.dependency_overrides.clear()
+
+
+def test_get_unknown_session_returns_404():
+    _override()
+    client = TestClient(app)
+    resp = client.get("/api/session/nonexistent")
+    assert resp.status_code == 404
+    app.dependency_overrides.clear()
+
+
+def test_delete_session_endpoint():
+    store = _override()
+    s = store.create()
+    client = TestClient(app)
+    resp = client.delete(f"/api/session/{s.session_id}")
+    assert resp.status_code == 200
+    assert resp.json()["deleted"] is True
+    assert store.get(s.session_id) is None
+    app.dependency_overrides.clear()
+
+
+def test_rename_session_endpoint():
+    store = _override()
+    s = store.create()
+    s.add_message("user", "原标题")
+
+    client = TestClient(app)
+    resp = client.post(
+        "/api/session/rename",
+        json={"session_id": s.session_id, "title": "阿里面试"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["title"] == "阿里面试"
+    assert store.get(s.session_id).title == "阿里面试"
+    app.dependency_overrides.clear()
+
+
 def test_chat_with_message_streams_reply():
     store = _override()
     s = store.create()

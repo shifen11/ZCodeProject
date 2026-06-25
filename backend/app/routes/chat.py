@@ -16,7 +16,10 @@ from app.schemas import (
     ChatRequest,
     ClearSubtitleRequest,
     RemoveSubtitleLineRequest,
+    RenameSessionRequest,
     ResetRequest,
+    SessionDetail,
+    SessionMessage,
 )
 from app.services.chat_service import ChatService
 from app.services.session import SessionStore
@@ -33,6 +36,57 @@ def create_session_endpoint(store: SessionStore = Depends(get_session_store)) ->
     """
     session = store.create()
     return {"session_id": session.session_id}
+
+
+@router.get("/sessions")
+def list_sessions_endpoint(store: SessionStore = Depends(get_session_store)) -> dict:
+    """列出所有会话摘要（id/title/updated_at），按更新时间倒序。"""
+    return {"sessions": store.list_summaries()}
+
+
+@router.get("/session/{session_id}", response_model=SessionDetail)
+def get_session_endpoint(
+    session_id: str,
+    store: SessionStore = Depends(get_session_store),
+) -> SessionDetail:
+    """获取某个会话的完整内容（切换会话时加载历史）。"""
+    session = store.get(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="session not found")
+    return SessionDetail(
+        session_id=session.session_id,
+        title=session.title,
+        messages=[
+            SessionMessage(role=m.role, content=m.content) for m in session.messages
+        ],
+        subtitle_lines=list(session.subtitle_lines),
+    )
+
+
+@router.delete("/session/{session_id}")
+def delete_session_endpoint(
+    session_id: str,
+    store: SessionStore = Depends(get_session_store),
+) -> dict:
+    """删除某个会话。"""
+    ok = store.delete(session_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="session not found")
+    return {"session_id": session_id, "deleted": True}
+
+
+@router.post("/session/rename")
+def rename_session_endpoint(
+    req: RenameSessionRequest,
+    store: SessionStore = Depends(get_session_store),
+) -> dict:
+    """重命名某个会话。"""
+    session = store.get(req.session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="session not found")
+    session.rename(req.title)
+    store.save(req.session_id)
+    return {"session_id": req.session_id, "title": session.title or "新对话"}
 
 
 @router.post("/chat")
@@ -52,6 +106,7 @@ def chat_endpoint(
 
     if req.send_subtitles:
         user_content = session.consume_subtitles()
+        store.save(req.session_id)  # 字幕已消费，落盘
     else:
         user_content = req.message.strip()
 
@@ -80,6 +135,7 @@ def reset_endpoint(
     if session is None:
         raise HTTPException(status_code=404, detail="session not found")
     session.clear_messages()
+    store.save(req.session_id)
     return {"session_id": req.session_id, "reset": True}
 
 
@@ -95,6 +151,7 @@ def remove_line_endpoint(
     ok = session.remove_subtitle_line(req.line_index)
     if not ok:
         raise HTTPException(status_code=400, detail="行号越界")
+    store.save(req.session_id)
     return {
         "session_id": req.session_id,
         "remaining_lines": list(session.subtitle_lines),
@@ -111,4 +168,5 @@ def clear_subtitle_endpoint(
     if session is None:
         raise HTTPException(status_code=404, detail="session not found")
     session.clear_subtitles()
+    store.save(req.session_id)
     return {"session_id": req.session_id, "cleared": True}

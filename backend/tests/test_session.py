@@ -111,3 +111,74 @@ def test_store_get_or_create():
     s = store.create()
     assert store.get_or_create(s.session_id) is s
     assert store.get_or_create("new-id") is not s
+
+
+# ---- 多会话：标题 / 列表 / 删除 ----
+def test_title_auto_set_from_first_user_message():
+    store = SessionStore()
+    s = store.create()
+    assert s.title is None
+    s.add_message("assistant", "你好")  # assistant 消息不设标题
+    assert s.title is None
+    s.add_message("user", "讲讲你做过的最有挑战的项目经历")
+    # 短句不截断，整句作标题
+    assert s.title == "讲讲你做过的最有挑战的项目经历"
+
+
+def test_title_truncated_when_over_max_len():
+    """超过 24 字的标题截断到 24 字。"""
+    from app.services.session import TITLE_MAX_LEN
+
+    store = SessionStore()
+    s = store.create()
+    long_msg = "这是一段非常非常非常非常非常非常非常非常非常非常非常非常非常非常长的面试官提问内容要被截断"
+    s.add_message("user", long_msg)
+    assert len(s.title) == TITLE_MAX_LEN
+    assert s.title == long_msg[:TITLE_MAX_LEN]
+
+
+def test_title_set_only_once():
+    """标题只在首条 user 消息设置，后续 user 消息不改标题。"""
+    store = SessionStore()
+    s = store.create()
+    s.add_message("user", "第一个问题")
+    s.add_message("user", "第二个问题")
+    assert s.title == "第一个问题"
+
+
+def test_list_summaries_sorted_by_updated_desc():
+    store = SessionStore()
+    a = store.create()
+    a.add_message("user", "aaa")
+    b = store.create()
+    b.add_message("user", "bbb")
+    summaries = store.list_summaries()
+    assert len(summaries) == 2
+    # b 后更新，应排在前
+    assert summaries[0]["session_id"] == b.session_id
+    assert summaries[0]["title"] == "bbb"
+    # 摘要不含完整 messages
+    assert "messages" not in summaries[0]
+
+
+def test_list_summaries_uses_fallback_title_for_new_session():
+    store = SessionStore()
+    s = store.create()  # 没有任何消息
+    summaries = store.list_summaries()
+    assert summaries[0]["title"] == "新对话"
+
+
+def test_delete_session():
+    store = SessionStore()
+    s = store.create()
+    assert store.delete(s.session_id) is True
+    assert store.get(s.session_id) is None
+    assert store.delete(s.session_id) is False
+
+
+def test_rename_session():
+    store = SessionStore()
+    s = store.create()
+    s.add_message("user", "原标题")
+    s.rename("阿里面试")
+    assert s.title == "阿里面试"

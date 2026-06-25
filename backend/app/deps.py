@@ -4,15 +4,15 @@ from fastapi import Depends
 
 from app.config import Settings, get_settings
 from app.services.chat_service import ChatService
-from app.services.document_store import DEFAULT_PATH, DocumentStore
+from app.services.document_store import DEFAULT_PATH as DOC_PATH, DocumentStore
 from app.services.llm import LlmClient
-from app.services.session import SessionStore
+from app.services.session import DEFAULT_PATH as SESSION_PATH, SessionStore
 from app.services.token_provider import NlsTokenProvider
 
-# 进程级单例：会话存储本身无配置依赖，直接复用。
-_session_store_singleton = SessionStore()
+# 进程级单例：会话存储，落盘到 data/sessions.json，重启不丢。
+_session_store_singleton = SessionStore(path=SESSION_PATH)
 # 进程级单例：文档存储（简历/题库），落盘到 data/documents.json，重启不丢。
-_document_store_singleton = DocumentStore(path=DEFAULT_PATH)
+_document_store_singleton = DocumentStore(path=DOC_PATH)
 
 
 def get_session_store() -> SessionStore:
