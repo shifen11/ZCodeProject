@@ -1,70 +1,69 @@
 import { useCallback, useState } from 'react'
-import { postClear, streamAsk, streamSuggest } from '../api/chat'
+import { resetChat, sendChat } from '../api/chat'
 import type { ChatMessage } from '../types'
 
 /**
- * 管理建议 + 追问：generate 流式生成建议，ask 流式追问，clear 清空。
+ * 纯聊天：一个不断累积的对话历史。
+ * - send(message)：手打一条消息，流式追加 user+assistant。
+ * - sendSubtitles()：把字幕区全部内容作为一条消息发出。
+ * - reset()：清空整个对话历史。
  */
 export function useChat(sessionId: string) {
-  const [suggestion, setSuggestion] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [messages, setMessages] = useState<ChatMessage[]>([])
   const [streaming, setStreaming] = useState('')
-  const [followups, setFollowups] = useState<ChatMessage[]>([])
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  // 生成建议：流式返回，逐 token 累积显示。成功返回 true。
-  // question 非空时走手动输入模式（不读/不清语音字幕）。
-  const generate = useCallback(async (question?: string): Promise<boolean> => {
-    if (!sessionId) return false
-    setLoading(true)
-    setError('')
-    setSuggestion('')
-    try {
-      let acc = ''
-      for await (const delta of streamSuggest(sessionId, question)) {
-        acc += delta
-        setSuggestion(acc)
-      }
-      return true
-    } catch (e) {
-      setError((e as Error).message)
-      return false
-    } finally {
-      setLoading(false)
-    }
-  }, [sessionId])
-
-  const ask = useCallback(
-    async (message: string) => {
-      if (!sessionId) return
-      setFollowups((prev) => [...prev, { role: 'user', content: message }])
+  const sendStream = useCallback(
+    async (body: { message?: string; send_subtitles?: boolean }): Promise<boolean> => {
+      if (!sessionId) return false
+      setLoading(true)
+      setError('')
       setStreaming('')
+      // 先把 user 消息加进显示（字幕发送时这里先空着，让后端消费后再不补，
+      // 因为字幕区在前端已可见，避免重复显示）
+      if (body.message) {
+        setMessages((prev) => [...prev, { role: 'user', content: body.message! }])
+      }
       try {
         let acc = ''
-        for await (const delta of streamAsk(sessionId, message)) {
+        for await (const delta of sendChat(sessionId, body)) {
           acc += delta
           setStreaming(acc)
         }
-        setFollowups((prev) => [...prev, { role: 'assistant', content: acc }])
+        setMessages((prev) => [...prev, { role: 'assistant', content: acc }])
+        return true
       } catch (e) {
-        setFollowups((prev) => [
-          ...prev,
-          { role: 'assistant', content: `（出错）${(e as Error).message}` },
-        ])
+        setError((e as Error).message)
+        return false
       } finally {
         setStreaming('')
+        setLoading(false)
       }
     },
     [sessionId],
   )
 
-  const clear = useCallback(async () => {
+  const send = useCallback(
+    (message: string) => sendStream({ message }),
+    [sendStream],
+  )
+
+  const sendSubtitles = useCallback(
+    () => sendStream({ send_subtitles: true }),
+    [sendStream],
+  )
+
+  const reset = useCallback(async () => {
     if (!sessionId) return
-    await postClear(sessionId)
-    setSuggestion('')
-    setFollowups([])
     setError('')
+    try {
+      await resetChat(sessionId)
+      setMessages([])
+    } catch (e) {
+      setError((e as Error).message)
+    }
   }, [sessionId])
 
-  return { suggestion, loading, streaming, followups, error, generate, ask, clear }
+  return { messages, streaming, loading, error, send, sendSubtitles, reset }
 }

@@ -1,3 +1,5 @@
+/** 后端对话 + 字幕 API 客户端。 */
+
 const BASE = '/api'
 
 /** SSE 流式读取通用工具：把 fetch 的 SSE 响应逐 token yield。 */
@@ -29,33 +31,30 @@ async function* readSseStream(
   }
 }
 
-/** SSE 流式生成建议：逐 token yield。question 非空时走手动输入模式。 */
-export async function* streamSuggest(
+/** 发送一条消息（或字幕区全部内容）给 LLM，流式返回回复。 */
+export async function* sendChat(
   sessionId: string,
-  question?: string,
+  body: { message?: string; send_subtitles?: boolean },
 ): AsyncGenerator<string> {
-  const body: Record<string, unknown> = { session_id: sessionId }
-  if (question && question.trim()) {
-    body.question = question.trim()
-  }
-  const resp = await fetch(`${BASE}/suggest`, {
+  const resp = await fetch(`${BASE}/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ session_id: sessionId, ...body }),
   })
-  yield* readSseStream(resp, '生成失败')
+  yield* readSseStream(resp, '对话失败')
 }
 
-export async function postClear(sessionId: string): Promise<void> {
-  const resp = await fetch(`${BASE}/clear`, {
+/** 清空整个对话历史（字幕区不动）。 */
+export async function resetChat(sessionId: string): Promise<void> {
+  const resp = await fetch(`${BASE}/reset`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ session_id: sessionId }),
   })
-  if (!resp.ok) throw new Error(`清空失败：${resp.status}`)
+  if (!resp.ok) throw new Error(`重置失败：${resp.status}`)
 }
 
-/** 删除当前轮次的某一行字幕。返回剩余行。 */
+/** 删除字幕区某一行。返回剩余行。 */
 export async function removeSubtitleLine(
   sessionId: string,
   lineIndex: number,
@@ -70,7 +69,7 @@ export async function removeSubtitleLine(
   return data.remaining_lines as string[]
 }
 
-/** 清空当前轮次的所有字幕（影响后端 current_turn_text）。 */
+/** 清空字幕区（不影响对话历史）。 */
 export async function clearSubtitle(sessionId: string): Promise<void> {
   const resp = await fetch(`${BASE}/subtitle/clear`, {
     method: 'POST',
@@ -78,14 +77,4 @@ export async function clearSubtitle(sessionId: string): Promise<void> {
     body: JSON.stringify({ session_id: sessionId }),
   })
   if (!resp.ok) throw new Error(`清空字幕失败：${resp.status}`)
-}
-
-/** SSE 流式追问：逐 token yield。 */
-export async function* streamAsk(
-  sessionId: string,
-  message: string,
-): AsyncGenerator<string> {
-  const params = new URLSearchParams({ session_id: sessionId, message })
-  const resp = await fetch(`${BASE}/ask?${params.toString()}`)
-  yield* readSseStream(resp, '追问失败')
 }

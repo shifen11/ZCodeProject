@@ -1,14 +1,14 @@
 import { useCallback } from 'react'
 import { Link } from 'react-router-dom'
+import { ChatPanel } from '../components/ChatPanel'
 import { Controls } from '../components/Controls'
 import { SubtitlePanel } from '../components/SubtitlePanel'
-import { SuggestPanel } from '../components/SuggestPanel'
 import { useAudioCapture } from '../hooks/useAudioCapture'
 import { useChat } from '../hooks/useChat'
 import { useSubtitle } from '../hooks/useSubtitle'
 
 /**
- * 面试助手页：左侧实时字幕 + 右侧建议/追问。
+ * 面试助手页：左侧字幕区（采集）+ 右侧对话区（和 GLM 聊）。
  */
 function InterviewPage() {
   const subtitle = useSubtitle()
@@ -30,31 +30,21 @@ function InterviewPage() {
     subtitle.close()
   }
 
-  // 生成建议：成功后清空左侧字幕（这轮的话已送走，开始新一轮），
-  // 与后端 current_turn_text 清空保持一致。失败不清空，保留字幕方便重试。
-  const onSuggest = useCallback(async () => {
-    const ok = await chat.generate()
+  // 发送字幕：把字幕区全部内容发给 LLM。成功后清前端字幕（后端已清）。
+  const onSendSubtitles = useCallback(async () => {
+    const ok = await chat.sendSubtitles()
     if (ok) {
       subtitle.clearLines()
     }
   }, [chat, subtitle])
 
-  // 手动输入问题生成建议：走手动模式（后端不动语音累积）。
-  // 成功后清左侧显示（手动问题独立成轮，与语音字幕分离）。
-  const onManualAsk = useCallback(
-    async (question: string) => {
-      const ok = await chat.generate(question)
-      if (ok) {
-        subtitle.clearLines()
-      }
+  // 手动输入：直接发给 LLM（不进字幕区）。
+  const onManualSend = useCallback(
+    (message: string) => {
+      chat.send(message)
     },
-    [chat, subtitle],
+    [chat],
   )
-
-  const onClear = useCallback(async () => {
-    await chat.clear()
-    subtitle.clearLines()
-  }, [chat, subtitle])
 
   return (
     <main className="app-shell">
@@ -68,8 +58,6 @@ function InterviewPage() {
           isCapturing={isCapturing}
           onStart={onStart}
           onStop={onStop}
-          onSuggest={onSuggest}
-          onClear={onClear}
         />
         {(captureError || subtitle.error) && (
           <div className="error-banner" role="alert">
@@ -82,15 +70,16 @@ function InterviewPage() {
             currentPartial={subtitle.currentPartial}
             onRemoveLine={subtitle.removeLine}
             onClearAll={subtitle.clearAll}
-            onManualAsk={onManualAsk}
+            onSendSubtitles={onSendSubtitles}
+            onManualSend={onManualSend}
           />
-          <SuggestPanel
-            suggestion={chat.suggestion}
-            loading={chat.loading}
+          <ChatPanel
+            messages={chat.messages}
             streaming={chat.streaming}
-            followups={chat.followups}
+            loading={chat.loading}
             error={chat.error}
-            onAsk={chat.ask}
+            onSend={chat.send}
+            onReset={chat.reset}
           />
         </section>
       </div>

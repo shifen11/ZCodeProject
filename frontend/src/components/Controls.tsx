@@ -2,17 +2,13 @@ interface Props {
   isCapturing: boolean
   onStart: () => void
   onStop: () => void
-  onSuggest: () => void
-  onClear: () => void
 }
 
-export function Controls({
-  isCapturing,
-  onStart,
-  onStop,
-  onSuggest,
-  onClear,
-}: Props) {
+/**
+ * 顶部控制栏：只管音频采集开关。
+ * （发送字幕/重置对话等操作放在各自面板里，职责更清晰。）
+ */
+export function Controls({ isCapturing, onStart, onStop }: Props) {
   return (
     <header className="topbar">
       <div className="brand">
@@ -32,8 +28,6 @@ export function Controls({
       ) : (
         <button className="primary-control" onClick={onStart}>▶ 开始采集</button>
       )}
-      <button className="accent-control" onClick={onSuggest}>✨ 生成建议</button>
-      <button className="secondary-control" onClick={onClear}>🗑 清空上下文</button>
     </header>
   )
 }
