@@ -6,6 +6,7 @@
 from fastapi import Depends
 
 from app.config import Settings, get_settings
+from app.services.document_store import DocumentStore
 from app.services.llm import LlmClient
 from app.services.session import SessionStore
 from app.services.suggest import SuggestService
@@ -13,10 +14,16 @@ from app.services.token_provider import NlsTokenProvider
 
 # 进程级单例：会话存储本身无配置依赖，直接复用。
 _session_store_singleton = SessionStore()
+# 进程级单例：文档存储（简历/题库），跨 session 共享。
+_document_store_singleton = DocumentStore()
 
 
 def get_session_store() -> SessionStore:
     return _session_store_singleton
+
+
+def get_document_store() -> DocumentStore:
+    return _document_store_singleton
 
 
 def get_llm(settings: Settings = Depends(get_settings)) -> LlmClient:
@@ -36,5 +43,6 @@ def get_token_provider(
 def get_suggest_service(
     settings: Settings = Depends(get_settings),
     store: SessionStore = Depends(get_session_store),
+    doc_store: DocumentStore = Depends(get_document_store),
 ) -> SuggestService:
-    return SuggestService(llm=get_llm(settings), store=store)
+    return SuggestService(llm=get_llm(settings), store=store, doc_store=doc_store)
