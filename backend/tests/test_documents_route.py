@@ -21,7 +21,7 @@ def test_upload_markdown_then_list():
     resp = client.post(
         "/api/documents/upload",
         data={"doc_type": "qa"},
-        files={"file": ("q.md", BytesIO(b"# 题目\n答案"), "text/markdown")},
+        files={"file": ("q.md", BytesIO("# 题目\n答案".encode("utf-8")), "text/markdown")},
     )
     assert resp.status_code == 200
     body = resp.json()
