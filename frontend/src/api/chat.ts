@@ -2,6 +2,14 @@
 
 const BASE = '/api'
 
+/** 创建一个新会话，返回 session_id。 */
+export async function createSession(): Promise<string> {
+  const resp = await fetch(`${BASE}/session`, { method: 'POST' })
+  if (!resp.ok) throw new Error(`创建会话失败：${resp.status}`)
+  const data = await resp.json()
+  return data.session_id as string
+}
+
 /** SSE 流式读取通用工具：把 fetch 的 SSE 响应逐 token yield。 */
 async function* readSseStream(
   resp: Response,

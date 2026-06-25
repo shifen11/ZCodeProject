@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import type { SubtitleLine } from '../types'
 
 interface Props {
@@ -8,8 +8,6 @@ interface Props {
   onClearAll: () => void
   /** 把字幕区全部内容作为一条消息发给 LLM（发送后字幕区清空）。 */
   onSendSubtitles: () => void
-  /** 手动输入一句话，直接发给 LLM（不进字幕区）。 */
-  onManualSend: (message: string) => void
 }
 
 export function SubtitlePanel({
@@ -18,21 +16,11 @@ export function SubtitlePanel({
   onRemoveLine,
   onClearAll,
   onSendSubtitles,
-  onManualSend,
 }: Props) {
   const bottomRef = useRef<HTMLDivElement | null>(null)
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [lines, currentPartial])
-
-  const [manualInput, setManualInput] = useState('')
-  const sendManual = () => {
-    const q = manualInput.trim()
-    if (q) {
-      onManualSend(q)
-      setManualInput('')
-    }
-  }
 
   return (
     <section className="panel-card subtitle-card" aria-label="实时字幕">
@@ -58,7 +46,7 @@ export function SubtitlePanel({
       <div className="subtitle-content">
         {lines.length === 0 && !currentPartial && (
           <p className="empty-state">
-            点"开始采集"后，面试官的话会出现在这里。也可在下方手动输入。
+            点"开始采集"后，面试官的话会出现在这里。打字聊天请用右侧对话区。
           </p>
         )}
         {lines.map((line, index) => (
@@ -82,21 +70,6 @@ export function SubtitlePanel({
         )}
         <div ref={bottomRef} />
       </div>
-      <form
-        className="manual-input-form"
-        onSubmit={(e) => {
-          e.preventDefault()
-          sendManual()
-        }}
-      >
-        <input
-          aria-label="手动输入消息"
-          value={manualInput}
-          onChange={(e) => setManualInput(e.target.value)}
-          placeholder="手动输入消息，回车直接发送"
-        />
-        <button type="submit">发送</button>
-      </form>
     </section>
   )
 }

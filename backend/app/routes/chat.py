@@ -24,6 +24,17 @@ from app.services.session import SessionStore
 router = APIRouter(prefix="/api")
 
 
+@router.post("/session")
+def create_session_endpoint(store: SessionStore = Depends(get_session_store)) -> dict:
+    """创建一个新会话，返回 session_id。
+
+    让对话/字幕不依赖音频采集：页面加载时即可创建会话。
+    音频 WS 连接时会复用同一个 session_id（字幕进同一会话）。
+    """
+    session = store.create()
+    return {"session_id": session.session_id}
+
+
 @router.post("/chat")
 def chat_endpoint(
     req: ChatRequest,

@@ -26,6 +26,18 @@ def _svc(store, stream_chunks):
     return svc
 
 
+def test_create_session_returns_id():
+    store = _override()
+    client = TestClient(app)
+    resp = client.post("/api/session")
+    assert resp.status_code == 200
+    sid = resp.json()["session_id"]
+    assert sid
+    # session 已存在
+    assert store.get(sid) is not None
+    app.dependency_overrides.clear()
+
+
 def test_chat_with_message_streams_reply():
     store = _override()
     s = store.create()
