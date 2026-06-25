@@ -6,11 +6,14 @@
 """
 
 from dataclasses import dataclass
-from typing import Iterator, List
+from typing import TYPE_CHECKING, Iterator, List
 
-from app.prompts import SYSTEM_PROMPT
+from app.prompts import build_system_prompt
 from app.services.llm import LlmClient
 from app.services.session import InterviewSession, SessionStore
+
+if TYPE_CHECKING:
+    from app.services.document_store import DocumentStore
 
 CURRENT_TURN_PREFIX = "面试官问："
 
@@ -23,13 +26,20 @@ class SuggestSnapshot:
 
 
 class SuggestService:
-    def __init__(self, llm: LlmClient, store: SessionStore) -> None:
+    def __init__(
+        self,
+        llm: LlmClient,
+        store: SessionStore,
+        doc_store: "DocumentStore | None" = None,
+    ) -> None:
         self._llm = llm
         self._store = store
+        self._doc_store = doc_store
 
     def build_messages(self, session: InterviewSession) -> List[dict]:
-        """组装 messages：system + 历史(多轮 user/assistant) + 当前 user。"""
-        messages: List[dict] = [{"role": "system", "content": SYSTEM_PROMPT}]
+        """组装 messages：system(含文档) + 历史 + 当前 user。"""
+        system_prompt = self._build_system_prompt_with_docs()
+        messages: List[dict] = [{"role": "system", "content": system_prompt}]
         for turn in session.history_turns:
             messages.append({"role": "user", "content": CURRENT_TURN_PREFIX + turn.question})
             messages.append({"role": "assistant", "content": turn.suggestion})
@@ -37,6 +47,14 @@ class SuggestService:
             {"role": "user", "content": CURRENT_TURN_PREFIX + session.current_turn_text}
         )
         return messages
+
+    def _build_system_prompt_with_docs(self) -> str:
+        """从 doc_store 取简历/题库全文，拼进 system prompt。无 doc_store 时用基础 prompt。"""
+        if self._doc_store is None:
+            return build_system_prompt(resume_text="", qa_text="")
+        resume_text = "\n\n".join(d.text for d in self._doc_store.get_by_type("resume"))
+        qa_text = "\n\n".join(d.text for d in self._doc_store.get_by_type("qa"))
+        return build_system_prompt(resume_text=resume_text, qa_text=qa_text)
 
     def suggest(self, session_id: str) -> str:
         """同步生成并结转当前轮次。返回建议文本。"""

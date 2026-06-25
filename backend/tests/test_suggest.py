@@ -90,3 +90,30 @@ def test_suggest_stream_unknown_session_raises():
     svc = SuggestService(llm=MagicMock(), store=store)
     with pytest.raises(KeyError):
         list(svc.suggest_stream("nonexistent"))
+
+
+def test_build_messages_includes_resume_when_doc_store_has_resume():
+    from app.services.document_store import DocumentStore
+
+    docs = DocumentStore()
+    docs.add(filename="r.pdf", doc_type="resume", text="我在腾讯做过后端", size_bytes=10)
+    store = SessionStore()
+    s = store.create()
+    s.append_final("讲讲项目")
+    svc = SuggestService(llm=_fake_llm("x"), store=store, doc_store=docs)
+
+    msgs = svc.build_messages(s)
+
+    assert "我在腾讯做过后端" in msgs[0]["content"]
+
+
+def test_build_messages_without_doc_store_uses_base_prompt():
+    store = SessionStore()
+    s = store.create()
+    s.append_final("讲讲项目")
+    svc = SuggestService(llm=_fake_llm("x"), store=store, doc_store=None)
+
+    msgs = svc.build_messages(s)
+
+    # 无文档时 system message 不含文档区标题
+    assert "用户的简历" not in msgs[0]["content"]
