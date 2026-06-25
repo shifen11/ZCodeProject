@@ -27,7 +27,7 @@ function InterviewPage() {
     useAudioCapture(handleChunk)
 
   const onStart = async () => {
-    subtitle.connect(sessionId)
+    subtitle.connect()
     await start()
   }
   const onStop = () => {
