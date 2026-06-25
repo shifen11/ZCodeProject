@@ -36,16 +36,19 @@ class SuggestService:
         self._store = store
         self._doc_store = doc_store
 
-    def build_messages(self, session: InterviewSession) -> List[dict]:
-        """组装 messages：system(含文档) + 历史 + 当前 user。"""
+    def build_messages(self, session: InterviewSession, question_override: str = "") -> List[dict]:
+        """组装 messages：system(含文档) + 历史 + 当前 user。
+
+        question_override 非空时，用它作为当前问题（手动输入场景），
+        不读 session.current_turn_text。
+        """
         system_prompt = self._build_system_prompt_with_docs()
         messages: List[dict] = [{"role": "system", "content": system_prompt}]
         for turn in session.history_turns:
             messages.append({"role": "user", "content": CURRENT_TURN_PREFIX + turn.question})
             messages.append({"role": "assistant", "content": turn.suggestion})
-        messages.append(
-            {"role": "user", "content": CURRENT_TURN_PREFIX + session.current_turn_text}
-        )
+        current_q = question_override if question_override else session.current_turn_text
+        messages.append({"role": "user", "content": CURRENT_TURN_PREFIX + current_q})
         return messages
 
     def _build_system_prompt_with_docs(self) -> str:
@@ -66,22 +69,29 @@ class SuggestService:
         session.finalize_turn(suggestion=suggestion)
         return suggestion
 
-    def prepare_stream(self, session_id: str) -> tuple[SuggestSnapshot, List[dict]]:
+    def prepare_stream(
+        self, session_id: str, question_override: str = ""
+    ) -> tuple[SuggestSnapshot, List[dict]]:
         """流式生成的准备阶段。
 
-        1. 组装 messages（含当前轮次文本）。
-        2. 拍下 question 快照（= 当前轮次文本，供前端回显）。
-        3. 立即清空当前轮次：识别可以马上开始累积下一轮，不与生成冲突。
+        1. 组装 messages（含当前轮次文本，或 question_override 手动问题）。
+        2. 拍下 question 快照（供前端回显）。
+        3. 非手动模式：立即清空当前轮次，识别可马上累积下一轮。
+           手动模式：不动 session.current_turn_text（手动问题与语音累积互不影响）。
 
         返回 (快照, messages)。流结束后再调 commit_stream 把建议存进 history。
         """
         session = self._store.get(session_id)
         if session is None:
             raise KeyError(f"session not found: {session_id}")
-        snapshot = SuggestSnapshot(question=session.current_turn_text)
-        messages = self.build_messages(session)
-        # 立即清空当前轮次，开始新一轮累积（消息已经组装好，不受影响）
-        session.clear_current_turn()
+        if question_override:
+            snapshot = SuggestSnapshot(question=question_override)
+            messages = self.build_messages(session, question_override=question_override)
+        else:
+            snapshot = SuggestSnapshot(question=session.current_turn_text)
+            messages = self.build_messages(session)
+            # 语音模式才清空当前轮次（手动问题不碰语音累积）
+            session.clear_current_turn()
         return snapshot, messages
 
     def commit_stream(self, session_id: str, snapshot: SuggestSnapshot, suggestion: str) -> None:
@@ -95,9 +105,12 @@ class SuggestService:
             Turn(question=snapshot.question, suggestion=suggestion)
         )
 
-    def suggest_stream(self, session_id: str) -> Iterator[str]:
-        """流式生成并结转当前轮次。逐 token 产出建议片段。"""
-        snapshot, messages = self.prepare_stream(session_id)
+    def suggest_stream(self, session_id: str, question_override: str = "") -> Iterator[str]:
+        """流式生成并结转当前轮次。逐 token 产出建议片段。
+
+        question_override 非空时走手动输入模式（不读/不清 session 累积）。
+        """
+        snapshot, messages = self.prepare_stream(session_id, question_override)
         acc: list[str] = []
         for delta in self._llm.stream(messages):
             acc.append(delta)

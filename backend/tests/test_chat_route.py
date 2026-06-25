@@ -130,3 +130,63 @@ def test_ask_unknown_session_returns_404():
     )
     assert resp.status_code == 404
     app.dependency_overrides.clear()
+
+
+def test_suggest_with_manual_question_works_without_subtitle():
+    """手动问题：即使 session 无字幕也能生成。"""
+    store, s = _setup_session_with_turn()
+    s.clear_current_turn()  # 清掉字幕，模拟无语音输入
+    fake_llm = MagicMock()
+    fake_llm.stream.return_value = iter(["建议"])
+    svc = SuggestService(llm=fake_llm, store=store)
+    app.dependency_overrides[get_suggest_service] = lambda: svc
+
+    client = TestClient(app)
+    with client.stream(
+        "POST",
+        "/api/suggest",
+        json={"session_id": s.session_id, "question": "手动输入的问题"},
+    ) as resp:
+        assert resp.status_code == 200
+    # 手动问题已结转进 history
+    assert s.history_turns[-1].question == "手动输入的问题"
+    app.dependency_overrides.clear()
+
+
+def test_remove_line_endpoint_deletes_specific_line():
+    store, s = _setup_session_with_turn()
+    s.append_final("第二句")
+
+    client = TestClient(app)
+    resp = client.post(
+        "/api/subtitle/remove-line",
+        json={"session_id": s.session_id, "line_index": 0},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["remaining_lines"] == ["第二句"]
+    assert s.current_turn_text == "第二句"
+    app.dependency_overrides.clear()
+
+
+def test_remove_line_out_of_range_returns_400():
+    store, s = _setup_session_with_turn()
+
+    client = TestClient(app)
+    resp = client.post(
+        "/api/subtitle/remove-line",
+        json={"session_id": s.session_id, "line_index": 99},
+    )
+    assert resp.status_code == 400
+    app.dependency_overrides.clear()
+
+
+def test_clear_subtitle_endpoint_empties_current_turn():
+    store, s = _setup_session_with_turn()
+    s.append_final("更多内容")
+
+    client = TestClient(app)
+    resp = client.post("/api/subtitle/clear", json={"session_id": s.session_id})
+    assert resp.status_code == 200
+    assert resp.json()["cleared"] is True
+    assert s.current_turn_text == ""
+    app.dependency_overrides.clear()

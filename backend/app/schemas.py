@@ -12,6 +12,15 @@ class Turn(BaseModel):
 
 class SuggestRequest(BaseModel):
     session_id: str
+    # 可选：手动输入的面试官问题。非空时走手动模式，不读/不清 session 累积。
+    question: str | None = None
+
+
+class RemoveLineRequest(BaseModel):
+    """删除当前轮次的某一行字幕。"""
+
+    session_id: str
+    line_index: int
 
 
 class SuggestResponse(BaseModel):

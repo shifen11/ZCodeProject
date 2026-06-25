@@ -92,6 +92,37 @@ def test_suggest_stream_unknown_session_raises():
         list(svc.suggest_stream("nonexistent"))
 
 
+def test_suggest_stream_with_question_override_does_not_read_session():
+    """手动问题模式：不读 session.current_turn_text，不清空它。"""
+    store = SessionStore()
+    s = store.create()
+    s.append_final("语音累积的话")
+    fake_llm = MagicMock()
+    fake_llm.stream.return_value = iter(["建议"])
+    svc = SuggestService(llm=fake_llm, store=store)
+
+    chunks = list(svc.suggest_stream(s.session_id, question_override="手动输入的问题"))
+
+    assert "".join(chunks) == "建议"
+    # 手动模式不应清空语音累积
+    assert s.current_turn_text == "语音累积的话"
+    # 但手动问题应结转进 history（供追问）
+    assert s.history_turns[-1].question == "手动输入的问题"
+    assert s.history_turns[-1].suggestion == "建议"
+
+
+def test_build_messages_with_question_override_uses_override():
+    store = SessionStore()
+    s = store.create()
+    s.append_final("语音的话")
+    svc = SuggestService(llm=_fake_llm("x"), store=store)
+
+    msgs = svc.build_messages(s, question_override="手动问题")
+
+    # 最后的 user message 应是手动问题，不是语音的话
+    assert msgs[-1] == {"role": "user", "content": "面试官问：手动问题"}
+
+
 def test_build_messages_includes_resume_when_doc_store_has_resume():
     from app.services.document_store import DocumentStore
 
