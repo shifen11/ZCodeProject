@@ -81,7 +81,7 @@ class SuggestService:
         snapshot = SuggestSnapshot(question=session.current_turn_text)
         messages = self.build_messages(session)
         # 立即清空当前轮次，开始新一轮累积（消息已经组装好，不受影响）
-        session.current_turn_text = ""
+        session.clear_current_turn()
         return snapshot, messages
 
     def commit_stream(self, session_id: str, snapshot: SuggestSnapshot, suggestion: str) -> None:

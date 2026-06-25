@@ -54,7 +54,7 @@ def test_suggest_unknown_session_returns_404():
 
 def test_suggest_empty_turn_returns_400():
     store, s = _setup_session_with_turn()
-    s.current_turn_text = ""  # 没有转写文本
+    s.clear_current_turn()  # 没有转写文本
     fake_llm = MagicMock()
     svc = SuggestService(llm=fake_llm, store=store)
     app.dependency_overrides[get_suggest_service] = lambda: svc

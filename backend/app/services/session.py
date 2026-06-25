@@ -13,25 +13,39 @@ class InterviewSession:
 
     def __init__(self, session_id: str) -> None:
         self.session_id = session_id
-        self.current_turn_text: str = ""
+        # 当前轮次累积的定稿句子（按到达顺序）。支持单句删除/全部清空。
+        self.current_turn_lines: List[str] = []
         self.history_turns: List[Turn] = []
+
+    @property
+    def current_turn_text(self) -> str:
+        """当前轮次的完整文本（所有定稿句子用换行拼接）。只读。"""
+        return "\n".join(self.current_turn_lines)
 
     def append_final(self, text: str) -> None:
         """追加一句定稿字幕到当前轮次。空文本忽略。"""
         text = text.strip()
         if not text:
             return
-        if self.current_turn_text:
-            self.current_turn_text += "\n" + text
-        else:
-            self.current_turn_text = text
+        self.current_turn_lines.append(text)
+
+    def remove_line(self, index: int) -> bool:
+        """删除当前轮次的第 index 行（0 基）。越界返回 False。"""
+        if 0 <= index < len(self.current_turn_lines):
+            del self.current_turn_lines[index]
+            return True
+        return False
+
+    def clear_current_turn(self) -> None:
+        """清空当前轮次的所有定稿句子（不影响历史轮次）。"""
+        self.current_turn_lines = []
 
     def finalize_turn(self, suggestion: str) -> None:
         """把当前轮次结转为历史，记录建议，清空当前轮次。"""
         self.history_turns.append(
             Turn(question=self.current_turn_text, suggestion=suggestion)
         )
-        self.current_turn_text = ""
+        self.current_turn_lines = []
 
     def clear_history(self) -> None:
         """清空历史轮次，但保留当前正在进行的轮次。"""
