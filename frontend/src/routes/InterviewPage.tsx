@@ -1,5 +1,4 @@
-import { useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { useCallback, useState } from 'react'
 import { ChatPanel } from '../components/ChatPanel'
 import { Controls } from '../components/Controls'
 import { SessionSidebar } from '../components/SessionSidebar'
@@ -11,13 +10,14 @@ import { useSubtitle } from '../hooks/useSubtitle'
 
 /**
  * 面试助手页：左侧会话列表 + 字幕区 + 右侧对话区。
- * 像 ChatGPT 那样支持多会话切换。
+ * 像 ChatGPT 那样支持多会话切换，侧边栏可收起。
  */
 function InterviewPage() {
   const sessions = useSessions()
   const sessionId = sessions.currentId
   const subtitle = useSubtitle(sessionId)
   const chat = useChat(sessionId)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   const handleChunk = useCallback(
     (buf: ArrayBuffer) => subtitle.sendAudio(buf),
@@ -65,46 +65,43 @@ function InterviewPage() {
         <SessionSidebar
           sessions={sessions.sessions}
           currentId={sessionId}
+          collapsed={sidebarCollapsed}
           onSelect={sessions.switchTo}
           onCreate={sessions.createNew}
           onDelete={sessions.remove}
+          onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
         />
         <div className="app-main">
-          <div className="top-nav">
-            <Link to="/manage" className="manage-link">
-              管理简历/文档
-            </Link>
-          </div>
+          <Controls
+            isCapturing={isCapturing}
+            onStart={onStart}
+            onStop={onStop}
+            sidebarCollapsed={sidebarCollapsed}
+            onToggleSidebar={() => setSidebarCollapsed((v) => !v)}
+          />
+          {(captureError || subtitle.error || sessions.error) && (
+            <div className="error-banner" role="alert">
+              {captureError || subtitle.error || sessions.error}
+            </div>
+          )}
           {sessionId ? (
-            <>
-              <Controls
-                isCapturing={isCapturing}
-                onStart={onStart}
-                onStop={onStop}
+            <section className="workspace" aria-label="面试辅助工作区">
+              <SubtitlePanel
+                lines={subtitle.lines}
+                currentPartial={subtitle.currentPartial}
+                onRemoveLine={subtitle.removeLine}
+                onClearAll={subtitle.clearAll}
+                onSendSubtitles={onSendSubtitles}
               />
-              {(captureError || subtitle.error || sessions.error) && (
-                <div className="error-banner" role="alert">
-                  {captureError || subtitle.error || sessions.error}
-                </div>
-              )}
-              <section className="workspace" aria-label="面试辅助工作区">
-                <SubtitlePanel
-                  lines={subtitle.lines}
-                  currentPartial={subtitle.currentPartial}
-                  onRemoveLine={subtitle.removeLine}
-                  onClearAll={subtitle.clearAll}
-                  onSendSubtitles={onSendSubtitles}
-                />
-                <ChatPanel
-                  messages={chat.messages}
-                  streaming={chat.streaming}
-                  loading={chat.loading}
-                  error={chat.error}
-                  onSend={onManualSend}
-                  onReset={onReset}
-                />
-              </section>
-            </>
+              <ChatPanel
+                messages={chat.messages}
+                streaming={chat.streaming}
+                loading={chat.loading}
+                error={chat.error}
+                onSend={onManualSend}
+                onReset={onReset}
+              />
+            </section>
           ) : (
             <div className="empty-main-state">
               <p>还没有会话，点左侧"+ 新建对话"开始。</p>

@@ -721,6 +721,107 @@ input:focus-visible {
   font-size: 0.95rem;
 }
 
+/* 顶栏：侧边栏开关 + 管理入口 */
+
+.sidebar-toggle {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  color: #697493;
+  background: var(--color-surface);
+  font-size: 1.05rem;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.sidebar-toggle:hover {
+  background: var(--color-bg-accent);
+  color: var(--color-primary);
+}
+
+.manage-btn {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  color: var(--color-text);
+  background: var(--color-surface);
+  font-size: 0.9rem;
+  font-weight: 650;
+  white-space: nowrap;
+  transition: transform 160ms ease, background 160ms ease, color 160ms ease;
+}
+
+.manage-btn:hover {
+  transform: translateY(-1px);
+  color: var(--color-primary);
+  background: var(--color-bg-accent);
+}
+
+/* 侧边栏收起状态 */
+
+.session-sidebar.is-collapsed {
+  flex: 0 0 56px;
+  padding: 12px 8px;
+  align-items: center;
+}
+
+.session-sidebar-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.session-sidebar-head .new-session-btn {
+  flex: 1 1 0;
+}
+
+.sidebar-collapse-btn {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: #9aa4ba;
+  background: transparent;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: color 140ms ease, background 140ms ease;
+}
+
+.sidebar-collapse-btn:hover {
+  color: var(--color-primary);
+  background: var(--color-bg-accent);
+}
+
+.sidebar-icon-btn {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  color: #697493;
+  background: var(--color-surface);
+  font-size: 1.1rem;
+  cursor: pointer;
+  margin-bottom: 8px;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.sidebar-icon-btn:hover {
+  background: var(--color-bg-accent);
+  color: var(--color-primary);
+}
+
 /* 文档管理页 */
 
 .manage-frame {

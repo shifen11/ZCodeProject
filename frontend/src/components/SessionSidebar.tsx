@@ -3,9 +3,11 @@ import type { SessionSummary } from '../api/chat'
 interface Props {
   sessions: SessionSummary[]
   currentId: string
+  collapsed: boolean
   onSelect: (sessionId: string) => void
   onCreate: () => void
   onDelete: (sessionId: string) => void
+  onToggleCollapse: () => void
 }
 
 function formatTime(ts: number): string {
@@ -19,20 +21,59 @@ function formatTime(ts: number): string {
 }
 
 /**
- * 会话列表侧边栏：新建对话 + 切换 + 删除。
+ * 会话列表侧边栏：新建对话 + 切换 + 删除 + 收起。
+ * 收起时变成窄条，只显示新建和展开按钮。
  */
 export function SessionSidebar({
   sessions,
   currentId,
+  collapsed,
   onSelect,
   onCreate,
   onDelete,
+  onToggleCollapse,
 }: Props) {
+  if (collapsed) {
+    return (
+      <aside className="session-sidebar is-collapsed" aria-label="会话列表">
+        <button
+          type="button"
+          className="sidebar-icon-btn"
+          onClick={onCreate}
+          aria-label="新建对话"
+          title="新建对话"
+        >
+          ＋
+        </button>
+        <button
+          type="button"
+          className="sidebar-icon-btn"
+          onClick={onToggleCollapse}
+          aria-label="展开会话列表"
+          title="展开会话列表"
+        >
+          ☰
+        </button>
+      </aside>
+    )
+  }
+
   return (
     <aside className="session-sidebar" aria-label="会话列表">
-      <button type="button" className="new-session-btn" onClick={onCreate}>
-        + 新建对话
-      </button>
+      <div className="session-sidebar-head">
+        <button type="button" className="new-session-btn" onClick={onCreate}>
+          + 新建对话
+        </button>
+        <button
+          type="button"
+          className="sidebar-collapse-btn"
+          onClick={onToggleCollapse}
+          aria-label="收起会话列表"
+          title="收起会话列表"
+        >
+          ‹
+        </button>
+      </div>
       <ul className="session-list">
         {sessions.map((s) => (
           <li
